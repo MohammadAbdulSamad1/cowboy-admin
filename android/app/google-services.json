@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "416302423771",
+    "project_id": "cowboy-9bf1f",
+    "storage_bucket": "cowboy-9bf1f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:416302423771:android:451743479125d03749b6fe",
+        "android_client_info": {
+          "package_name": "com.example.dedicated_cow_boy_admin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "416302423771-3uhra2mmn38r85qkmnvmbtbrmaid6c74.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6Qh5vtNra-mGQR9hUEPX8c9DiZM8rnbM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "416302423771-3uhra2mmn38r85qkmnvmbtbrmaid6c74.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "416302423771-12kp4bu9b8s98126evckt9kjr45sbdal.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.west.dedicatedCowboy"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:416302423771:android:63a3a1320c6341b649b6fe",
+        "android_client_info": {
+          "package_name": "com.example.dedicated_cowboy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "416302423771-hoa17ss6muqgj9cba8390p7ed8u434tv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dedicated_cowboy",
+            "certificate_hash": "7b782610fcbfb674c0b7f5e078ed76f0410cd71c"
+          }
+        },
+        {
+          "client_id": "416302423771-3uhra2mmn38r85qkmnvmbtbrmaid6c74.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6Qh5vtNra-mGQR9hUEPX8c9DiZM8rnbM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "416302423771-3uhra2mmn38r85qkmnvmbtbrmaid6c74.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "416302423771-12kp4bu9b8s98126evckt9kjr45sbdal.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.west.dedicatedCowboy"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
