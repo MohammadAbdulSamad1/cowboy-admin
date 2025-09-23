@@ -109,9 +109,15 @@ class AuthStorage {
   // Check if token exists
   static Future<bool> hasValidToken() async {
     try {
+      debugPrint('AuthStorage.hasValidToken() called');
       final authData = await loadAuthData();
+      debugPrint('authData: ${authData != null ? 'exists' : 'null'}');
+      if (authData != null) {
+        debugPrint('token: ${authData['token'] != null ? 'exists' : 'null'}');
+      }
       return authData != null && authData['token'] != null;
     } catch (e) {
+      debugPrint('AuthStorage.hasValidToken error: $e');
       return false;
     }
   }

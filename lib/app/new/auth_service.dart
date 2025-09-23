@@ -412,12 +412,20 @@ class AuthService extends GetxService {
 
   // Check if user is authenticated
   Future<bool> isAuthenticated() async {
+    debugPrint('AuthService.isAuthenticated() called');
+    debugPrint('_currentUser: ${_currentUser?.email}');
+    debugPrint('_currentToken: ${_currentToken != null ? 'exists' : 'null'}');
+
     if (_currentUser != null && _currentToken != null) {
+      debugPrint('User is authenticated (in memory)');
       return true;
     }
 
     // Check stored auth data
-    return await AuthStorage.hasValidToken();
+    debugPrint('Checking stored auth data...');
+    final hasValidToken = await AuthStorage.hasValidToken();
+    debugPrint('hasValidToken: $hasValidToken');
+    return hasValidToken;
   }
 
   // Dispose

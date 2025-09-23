@@ -1,6 +1,7 @@
 import 'package:dedicated_cow_boy_admin/app/modules/dashboard_manage/controllers/dashboard_manage_controller.dart'
     hide PieChartData, BarChartData;
 import 'package:dedicated_cow_boy_admin/app/modules/pro.dart';
+import 'package:dedicated_cow_boy_admin/app/new/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -122,7 +123,7 @@ class DashboardManageView extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         PopupMenuButton<String>(
-          onSelected: (value) async{
+          onSelected: (value) async {
             if (value == 'profile') {
               Get.dialog(
                 Material(
@@ -138,7 +139,9 @@ class DashboardManageView extends StatelessWidget {
                 ),
               );
             } else if (value == 'logout') {
-               await FirebaseAuth.instance.signOut();
+              // Use API-based AuthService for logout
+              final authService = Get.find<AuthService>();
+              await authService.signOut();
               Get.offAllNamed('/auth');
             }
           },

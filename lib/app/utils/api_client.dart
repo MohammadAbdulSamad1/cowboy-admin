@@ -270,6 +270,72 @@ class ApiClient {
     }
   }
 
+  // Search Users
+  static Future<ApiResponse<List<ApiUserModel>>> searchUsers({
+    required String token,
+    required String searchTerm,
+    int page = 1,
+    int perPage = 100,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/wp-json/wp/v2/users').replace(
+        queryParameters: {
+          'search': searchTerm,
+          'page': page.toString(),
+          'per_page': perPage.toString(),
+          'context': 'edit', // Get full user data including meta
+        },
+      );
+
+      final response = await http
+          .get(uri, headers: _authHeaders(token))
+          .timeout(requestTimeout);
+
+      print('Search Users API Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> usersJson = jsonDecode(response.body);
+        final List<ApiUserModel> users =
+            usersJson
+                .map(
+                  (userJson) =>
+                      ApiUserModel.fromJson(userJson as Map<String, dynamic>),
+                )
+                .toList();
+
+        return ApiResponse<List<ApiUserModel>>(
+          success: true,
+          data: users,
+          statusCode: response.statusCode,
+        );
+      } else {
+        return ApiResponse<List<ApiUserModel>>(
+          success: false,
+          data: null,
+          statusCode: response.statusCode,
+          message: 'Failed to search users',
+        );
+      }
+    } on SocketException {
+      throw const AuthException(
+        message: 'No internet connection. Please check your network.',
+        code: 'network-error',
+      );
+    } on http.ClientException {
+      throw const AuthException(
+        message: 'Network error. Please try again.',
+        code: 'client-error',
+      );
+    } catch (e) {
+      print('Error searching users: $e');
+      if (e is AuthException) rethrow;
+      throw AuthException(
+        message: 'Failed to search users: $e',
+        code: 'users-search-error',
+      );
+    }
+  }
+
   // Get All Users
   static Future<ApiResponse<List<ApiUserModel>>> getAllUsers({
     String? token,

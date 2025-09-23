@@ -12,6 +12,7 @@ import 'package:dedicated_cow_boy_admin/firebase_options.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get/get.dart';
@@ -44,7 +45,7 @@ class AdminPanelApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      initialRoute: '/auth',
+      initialRoute: '/dashboard',
       getPages: AppRoutes.routes,
     );
   }
@@ -194,24 +195,105 @@ class AppRoutes {
 // }
 
 // Main Admin Screen
-class MainAdminScreen extends StatelessWidget {
+class MainAdminScreen extends StatefulWidget {
   const MainAdminScreen({super.key});
 
   @override
+  State<MainAdminScreen> createState() => _MainAdminScreenState();
+}
+
+class _MainAdminScreenState extends State<MainAdminScreen> {
+  bool _isCheckingAuth = true;
+  bool _isAuthenticated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    debugPrint('MainAdminScreen initState called');
+    _checkAuthentication();
+  }
+
+  Future<void> _checkAuthentication() async {
+    try {
+      final authService = Get.find<AuthService>();
+
+      debugPrint('Checking authentication...');
+      debugPrint('AuthService isSignedIn: ${authService.isSignedIn}');
+      debugPrint('AuthService currentUser: ${authService.currentUser?.email}');
+
+      // Use the async isAuthenticated method that checks stored data
+      final isAuthenticated = await authService.isAuthenticated();
+
+      debugPrint('isAuthenticated result: $isAuthenticated');
+
+      if (mounted) {
+        setState(() {
+          _isAuthenticated = isAuthenticated;
+          _isCheckingAuth = false;
+        });
+
+        if (!isAuthenticated) {
+          debugPrint('Not authenticated, redirecting to auth...');
+          // Redirect to auth screen if not authenticated
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Get.offAllNamed('/auth');
+          });
+        } else {
+          debugPrint('User is authenticated, showing dashboard...');
+        }
+      }
+    } catch (e) {
+      debugPrint('Authentication check error: $e');
+      if (mounted) {
+        setState(() {
+          _isCheckingAuth = false;
+          _isAuthenticated = false;
+        });
+        // Redirect to auth screen on error
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Get.offAllNamed('/auth');
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final authService = Get.find<AuthService>();
+    debugPrint(
+      'MainAdminScreen build called - _isCheckingAuth: $_isCheckingAuth, _isAuthenticated: $_isAuthenticated',
+    );
 
-    // Check current user immediately
-    final currentUser = authService.currentUser;
-
-    if (currentUser == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Get.offAllNamed('/auth');
-      });
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_isCheckingAuth) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Checking authentication...'),
+            ],
+          ),
+        ),
+      );
     }
 
-    // If user exists, show dashboard immediately
+    if (!_isAuthenticated) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Redirecting to login...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // If user is authenticated, show dashboard
     return const ResponsiveAdminDashboard();
   }
 }
@@ -227,7 +309,7 @@ class ResponsiveAdminDashboard extends StatelessWidget {
 
     return Scaffold(
       key: navController.scaffoldKey,
-      appBar: isMobile ? _buildMobileAppBar(navController) : null,
+      appBar: _buildMobileAppBar(navController),
       drawer: isMobile ? const ResponsiveDrawer() : null,
       body: Row(
         children: [
@@ -263,7 +345,6 @@ class ResponsiveAdminDashboard extends StatelessWidget {
   }
 
   void _showLogoutConfirmation() {
-    final AdminController controller = Get.find<AdminController>();
     Get.dialog(
       AlertDialog(
         title: const Text('Confirm Logout'),
@@ -273,7 +354,10 @@ class ResponsiveAdminDashboard extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Get.back();
-              await controller.logout();
+              // Use API-based AuthService for logout
+              final authService = Get.find<AuthService>();
+              await authService.signOut();
+              Get.offAllNamed('/auth');
             },
             child: const Text('Logout'),
           ),
@@ -423,7 +507,10 @@ class ResponsiveSidebar extends ConsumerWidget {
           TextButton(
             onPressed: () async {
               Get.back();
-              await controller.logout();
+              // Use API-based AuthService for logout
+              final authService = Get.find<AuthService>();
+              await authService.signOut();
+              Get.offAllNamed('/auth');
             },
             child: const Text('Logout'),
           ),
@@ -513,7 +600,6 @@ class ResponsiveDrawer extends StatelessWidget {
   }
 
   void _showLogoutConfirmation() {
-    final AdminController controller = Get.find<AdminController>();
     Get.dialog(
       AlertDialog(
         title: const Text('Confirm Logout'),
@@ -523,7 +609,10 @@ class ResponsiveDrawer extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Get.back();
-              await controller.logout();
+              // Use API-based AuthService for logout
+              final authService = Get.find<AuthService>();
+              await authService.signOut();
+              Get.offAllNamed('/auth');
             },
             child: const Text('Logout'),
           ),

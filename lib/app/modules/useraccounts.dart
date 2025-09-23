@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dedicated_cow_boy_admin/app/models/api_user_model.dart';
 import 'package:dedicated_cow_boy_admin/app/modules/pro.dart';
@@ -33,6 +34,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
   String _selectedStatus = 'All status';
   DateTime? _fromDate;
   DateTime? _toDate;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -46,6 +48,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
     _searchController.dispose();
     _fromDateController.dispose();
     _toDateController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
@@ -102,21 +105,82 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
   }
 
   void _onSearchChanged() {
-    _applyFilters();
+    // Debounce the search to avoid too many API calls
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _performSearch();
+    });
+  }
+
+  Future<void> _performSearch() async {
+    final searchTerm = _searchController.text.trim();
+
+    if (searchTerm.isEmpty) {
+      // If search is empty, reload all users and apply filters
+      await _loadUsers();
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Get auth token from AuthService
+      final authService = Get.find<AuthService>();
+      final token = authService.currentToken;
+
+      if (token == null) {
+        Get.snackbar(
+          'Error',
+          'Authentication token not found',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+          icon: const Icon(Icons.error, color: Colors.white),
+        );
+        return;
+      }
+
+      // Search users via API
+      final response = await ApiClient.searchUsers(
+        token: token,
+        searchTerm: searchTerm,
+        perPage: 100,
+      );
+
+      if (response.success && response.data != null) {
+        _users = response.data!;
+        _applyFilters();
+      } else {
+        Get.snackbar(
+          'Error',
+          'Failed to search users: ${response.message ?? 'Unknown error'}',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+          icon: const Icon(Icons.error, color: Colors.white),
+        );
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Error searching users: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        icon: const Icon(Icons.error, color: Colors.white),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   void _applyFilters() {
     List<ApiUserModel> filtered =
         _users.where((user) {
-          // Search filter
-          final searchTerm = _searchController.text.toLowerCase();
-          if (searchTerm.isNotEmpty) {
-            final matchesSearch =
-                user.name.toLowerCase().contains(searchTerm) ||
-                user.email.toLowerCase().contains(searchTerm) ||
-                user.username.toLowerCase().contains(searchTerm);
-            if (!matchesSearch) return false;
-          }
+          // Note: Search is now handled by API, so we skip local search filtering
 
           // User type filter - based on roles
           if (_selectedUserType != 'All users') {
