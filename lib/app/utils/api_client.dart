@@ -534,4 +534,112 @@ class ApiClient {
       );
     }
   }
+
+  // Generic method for making API requests
+  static Future<ApiResponse<T>> makeRequest<T>({
+    required Uri uri,
+    required String method,
+    required String token,
+    Map<String, dynamic>? body,
+  }) async {
+    try {
+      final headers = _authHeaders(token);
+      http.Response response;
+
+      print('Making API request to: $uri');
+      print('Method: $method');
+      print('Headers: $headers');
+
+      switch (method.toUpperCase()) {
+        case 'GET':
+          response = await http
+              .get(uri, headers: headers)
+              .timeout(requestTimeout);
+          break;
+        case 'POST':
+          response = await http
+              .post(
+                uri,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(requestTimeout);
+          break;
+        case 'PUT':
+          response = await http
+              .put(
+                uri,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(requestTimeout);
+          break;
+        case 'DELETE':
+          response = await http
+              .delete(uri, headers: headers)
+              .timeout(requestTimeout);
+          break;
+        default:
+          throw const AuthException(
+            message: 'Unsupported HTTP method',
+            code: 'unsupported-method',
+          );
+      }
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      // Handle WordPress API responses differently
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        try {
+          final data = jsonDecode(response.body);
+          return ApiResponse<T>(
+            success: true,
+            data: data as T,
+            statusCode: response.statusCode,
+            message: null,
+          );
+        } catch (e) {
+          print('Error parsing JSON: $e');
+          throw const AuthException(
+            message: 'Invalid response format from server.',
+            code: 'invalid-response',
+          );
+        }
+      } else {
+        // Handle error responses
+        String errorMessage = 'Request failed';
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage =
+              errorData['message'] ?? errorData['code'] ?? errorMessage;
+        } catch (e) {
+          errorMessage =
+              'HTTP ${response.statusCode}: ${response.reasonPhrase}';
+        }
+
+        throw AuthException(
+          message: errorMessage,
+          code: 'http-${response.statusCode}',
+        );
+      }
+    } on SocketException {
+      throw const AuthException(
+        message: 'No internet connection. Please check your network.',
+        code: 'network-error',
+      );
+    } on http.ClientException {
+      throw const AuthException(
+        message: 'Network error. Please try again.',
+        code: 'client-error',
+      );
+    } catch (e) {
+      if (e is AuthException) rethrow;
+      print('Unexpected error in makeRequest: $e');
+      throw AuthException(
+        message: 'Failed to make API request: $e',
+        code: 'api-request-error',
+      );
+    }
+  }
 }

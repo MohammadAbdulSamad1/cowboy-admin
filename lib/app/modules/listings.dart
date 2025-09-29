@@ -1,10 +1,9 @@
 // Controller for managing listings
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dedicated_cow_boy_admin/app/models/modules_models/business_model.dart';
-import 'package:dedicated_cow_boy_admin/app/models/modules_models/event_model.dart';
-import 'package:dedicated_cow_boy_admin/app/models/modules_models/item_model.dart';
+import 'package:dedicated_cow_boy_admin/app/utils/api_client.dart';
+import 'package:dedicated_cow_boy_admin/app/new/auth_service.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 // Enhanced ListingWrapper with admin fields
 class AdminListingWrapper {
@@ -38,86 +37,83 @@ class AdminListingWrapper {
     this.paymentStatus, // Added payment status
   });
 
-  factory AdminListingWrapper.fromListing(dynamic listing, String type) {
+  factory AdminListingWrapper.fromApiData(Map<String, dynamic> data) {
     return AdminListingWrapper(
-      listing: listing,
-      type: type,
-      id: _getId(listing),
-      name: _getName(listing, type),
-      userId: _getUserId(listing),
-      category: _getCategory(listing, type),
-      createdAt: _getCreatedAt(listing),
-      isActive: _getIsActive(listing),
-      isBanned: _getIsBanned(listing),
-      isRejected: _getIsRejected(listing),
-      rejectionReason: _getRejectionReason(listing),
-      updatedAt: _getUpdatedAt(listing),
-      paymentStatus: _getPaymentStatus(listing), // Added payment status
+      listing: data,
+      type: 'Business', // All listings from at_biz_dir are business type
+      id: data['id']?.toString(),
+      name: data['title']?['rendered'] ?? 'Unnamed Listing',
+      userId: data['author']?.toString(),
+      category: _getCategoryFromApi(data),
+      createdAt: _parseDate(data['date']),
+      isActive: _getIsActiveFromApi(data),
+      isBanned: _getIsBannedFromApi(data),
+      isRejected: _getIsRejectedFromApi(data),
+      rejectionReason: _getRejectionReasonFromApi(data),
+      updatedAt: _parseDate(data['modified']),
+      paymentStatus: _getPaymentStatusFromApi(data),
     );
   }
 
-  static String? _getId(dynamic listing) {
-    if (listing?.id != null) return listing.id;
+  // Helper methods for API data parsing
+  static DateTime? _parseDate(dynamic dateString) {
+    if (dateString == null) return null;
+    try {
+      return DateTime.parse(dateString.toString());
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static List<String>? _getCategoryFromApi(Map<String, dynamic> data) {
+    final categories = data['at_biz_dir-category'] as List?;
+    if (categories != null && categories.isNotEmpty) {
+      return categories.map((e) => e.toString()).toList();
+    }
     return null;
   }
 
-  static String? _getName(dynamic listing, String type) {
-    switch (type) {
-      case 'Item':
-        return listing?.itemName;
-      case 'Business':
-        return listing?.businessName;
-      case 'Event':
-        return listing?.eventName;
-      default:
-        return null;
+  static bool? _getIsActiveFromApi(Map<String, dynamic> data) {
+    final status = data['status']?.toString();
+    return status == 'publish';
+  }
+
+  static bool? _getIsBannedFromApi(Map<String, dynamic> data) {
+    // Check if listing is banned based on meta data
+    final meta = data['meta'];
+    if (meta != null) {
+      final listingStatus = meta['_listing_status']?.first?.toString();
+      return listingStatus == 'banned';
     }
+    return false;
   }
 
-  static String? _getUserId(dynamic listing) {
-    return listing?.userId;
-  }
-
-  static List<String>? _getCategory(dynamic listing, String type) {
-    switch (type) {
-      case 'Item':
-        return listing?.category;
-      case 'Business':
-        return listing?.businessCategory;
-      case 'Event':
-        return listing?.eventCategory;
-      default:
-        return null;
+  static bool? _getIsRejectedFromApi(Map<String, dynamic> data) {
+    final meta = data['meta'];
+    if (meta != null) {
+      final listingStatus = meta['_listing_status']?.first?.toString();
+      return listingStatus == 'rejected';
     }
+    return false;
   }
 
-  static DateTime? _getCreatedAt(dynamic listing) {
-    return listing?.createdAt;
+  static String? _getRejectionReasonFromApi(Map<String, dynamic> data) {
+    final meta = data['meta'];
+    if (meta != null) {
+      return meta['_rejection_reason']?.first?.toString();
+    }
+    return null;
   }
 
-  static bool? _getIsActive(dynamic listing) {
-    return listing?.isActive;
-  }
-
-  static bool? _getIsBanned(dynamic listing) {
-    return listing?.isBanned ?? false;
-  }
-
-  static bool? _getIsRejected(dynamic listing) {
-    return listing?.isRejected ?? false;
-  }
-
-  static String? _getRejectionReason(dynamic listing) {
-    return listing?.rejectionReason;
-  }
-
-  static DateTime? _getUpdatedAt(dynamic listing) {
-    return listing?.updatedAt;
-  }
-
-  // Added payment status getter
-  static String? _getPaymentStatus(dynamic listing) {
-    return listing?.paymentStatus ?? 'pending';
+  static String? _getPaymentStatusFromApi(Map<String, dynamic> data) {
+    final meta = data['meta'];
+    if (meta != null) {
+      final orderCompleted = meta['_order_completed_date']?.first?.toString();
+      if (orderCompleted != null && orderCompleted.isNotEmpty) {
+        return 'paid';
+      }
+    }
+    return 'pending';
   }
 
   String get status {
@@ -159,8 +155,6 @@ class AdminListingWrapper {
 
 // GetX Controller for Admin Listings Management
 class AdminListingsController extends GetxController {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   // Observable variables
   final RxList<AdminListingWrapper> allListings = <AdminListingWrapper>[].obs;
   final RxList<AdminListingWrapper> filteredListings =
@@ -180,7 +174,7 @@ class AdminListingsController extends GetxController {
 
   // Pagination
   static const int itemsPerPage = 20;
-  DocumentSnapshot? lastDocument;
+  int totalPages = 1;
 
   // Categories mapping based on listing types
   final Map<String, List<String>> categoriesStatic = {
@@ -262,7 +256,6 @@ class AdminListingsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadListings();
 
     // Set up reactive filtering
     ever(searchQuery, (_) => _applyFilters());
@@ -274,14 +267,38 @@ class AdminListingsController extends GetxController {
     ); // Added payment status filter
     ever(selectedDateFilter, (_) => _applyFilters());
     ever(sortBy, (_) => _applyFilters());
+
+    // Test API connectivity and load listings after a delay
+    Future.delayed(const Duration(milliseconds: 1000), () async {
+      await _testApiConnectivity();
+      loadListings();
+    });
   }
 
-  // Load listings with pagination
+  // Test API connectivity
+  Future<void> _testApiConnectivity() async {
+    try {
+      print('Testing API connectivity...');
+      final uri = Uri.parse(
+        'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir?per_page=1',
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      print('API test response: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        print('API is accessible');
+      } else {
+        print('API returned status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('API connectivity test failed: $e');
+    }
+  }
+
+  // Load listings with pagination from WordPress API
   Future<void> loadListings({bool refresh = false}) async {
     if (refresh) {
       currentPage.value = 1;
       hasMoreData.value = true;
-      lastDocument = null;
       allListings.clear();
     }
 
@@ -291,78 +308,126 @@ class AdminListingsController extends GetxController {
     isLoadingMore.value = !refresh;
 
     try {
-      List<AdminListingWrapper> newListings = [];
-
-      // Load from all three collections
-      await Future.wait([
-        _loadFromCollection('items', 'Item', newListings),
-        _loadFromCollection('businesses', 'Business', newListings),
-        _loadFromCollection('events', 'Event', newListings),
-      ]);
-
-      if (newListings.length < itemsPerPage) {
-        hasMoreData.value = false;
+      // Get auth token with error handling
+      AuthService? authService;
+      try {
+        authService = Get.find<AuthService>();
+      } catch (e) {
+        print('AuthService not found: $e');
+        Get.snackbar(
+          'Error',
+          'Authentication service not available. Please restart the app.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+        return;
       }
 
-      allListings.addAll(newListings);
-      _applyFilters();
+      final token = authService.currentToken;
+      print('Loading listings - Token: ${token != null ? 'exists' : 'null'}');
+
+      if (token == null) {
+        print('No authentication token found');
+        Get.snackbar(
+          'Error',
+          'Authentication token not found. Please log in again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+        return;
+      }
+
+      // Build API URL with parameters
+      final baseUrl = 'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir';
+      final queryParams = <String, String>{
+        'page': currentPage.value.toString(),
+        'per_page': itemsPerPage.toString(),
+        'context': 'edit', // Get full data including meta
+      };
+
+      // Add search if provided
+      if (searchQuery.value.isNotEmpty) {
+        queryParams['search'] = searchQuery.value;
+      }
+
+      final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
+
+      print('Making API call to: $uri');
+      print('Query params: $queryParams');
+
+      // Make API call
+      final response = await ApiClient.makeRequest(
+        uri: uri,
+        method: 'GET',
+        token: token,
+      );
+
+      print('API Response - Success: ${response.success}');
+      print('API Response - Status Code: ${response.statusCode}');
+      print('API Response - Message: ${response.message}');
+
+      if (response.success && response.data != null) {
+        final List<dynamic> listingsData = response.data as List<dynamic>;
+        final List<AdminListingWrapper> newListings =
+            listingsData
+                .map(
+                  (data) => AdminListingWrapper.fromApiData(
+                    data as Map<String, dynamic>,
+                  ),
+                )
+                .toList();
+
+        if (refresh) {
+          allListings.value = newListings;
+        } else {
+          allListings.addAll(newListings);
+        }
+
+        // Check if there are more pages - WordPress API doesn't provide total pages in response
+        // We'll assume there are more pages if we got a full page of results
+        hasMoreData.value = newListings.length == itemsPerPage;
+
+        _applyFilters();
+      } else {
+        Get.snackbar(
+          'Error',
+          'Failed to load listings: ${response.message ?? 'Unknown error'}',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+      }
     } catch (e) {
+      print('Error loading listings: $e');
+      print('Error type: ${e.runtimeType}');
+
+      String errorMessage = 'Failed to load listings';
+      if (e.toString().contains('network-error')) {
+        errorMessage = 'No internet connection. Please check your network.';
+      } else if (e.toString().contains('response-processing-error')) {
+        errorMessage = 'Server response error. Please try again.';
+      } else if (e.toString().contains('authentication')) {
+        errorMessage = 'Authentication failed. Please log in again.';
+      } else {
+        errorMessage = 'Failed to load listings: ${e.toString()}';
+      }
+
       Get.snackbar(
         'Error',
-        'Failed to load listings: $e',
+        errorMessage,
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
+        backgroundColor: Colors.red,
         colorText: Colors.white,
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 4),
       );
     } finally {
       isLoading.value = false;
       isLoadingMore.value = false;
-    }
-  }
-
-  Future<void> _loadFromCollection(
-    String collectionName,
-    String type,
-    List<AdminListingWrapper> listings,
-  ) async {
-    Query query = _firestore
-        .collection(collectionName)
-        .orderBy('createdAt', descending: true)
-        .limit(itemsPerPage ~/ 3); // Divide by 3 collections
-
-    if (lastDocument != null) {
-      query = query.startAfterDocument(lastDocument!);
-    }
-
-    final snapshot = await query.get();
-
-    if (snapshot.docs.isNotEmpty) {
-      lastDocument = snapshot.docs.last;
-    }
-
-    for (var doc in snapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final listing = _createListingObject(data, type, doc.id);
-      listings.add(AdminListingWrapper.fromListing(listing, type));
-    }
-  }
-
-  dynamic _createListingObject(
-    Map<String, dynamic> data,
-    String type,
-    String id,
-  ) {
-    // Create a generic object that matches your existing models
-    switch (type) {
-      case 'Item':
-        return ItemListing.fromFirestore({...data}, id);
-      case 'Business':
-        return BusinessListing.fromFirestore({...data}, id);
-      case 'Event':
-        return EventListing.fromFirestore({...data}, id);
-      default:
-        return null;
     }
   }
 
@@ -554,14 +619,11 @@ class AdminListingsController extends GetxController {
     }
   }
 
-  // Action methods - Updated to handle boolean status correctly
+  // Action methods - Updated to use WordPress API
   Future<void> activateListings(List<String> ids) async {
     await _updateListingsStatus(ids, {
-      'isActive': true,
-      'isRejected': false,
-      'isBanned': false,
-      'rejectionReason': null,
-      'updatedAt': FieldValue.serverTimestamp(),
+      'status': 'publish',
+      'meta': {'_listing_status': 'active', '_rejection_reason': ''},
     });
     clearSelection();
     Get.snackbar(
@@ -576,8 +638,8 @@ class AdminListingsController extends GetxController {
 
   Future<void> deactivateListings(List<String> ids) async {
     await _updateListingsStatus(ids, {
-      'isActive': false,
-      'updatedAt': FieldValue.serverTimestamp(),
+      'status': 'draft',
+      'meta': {'_listing_status': 'inactive'},
     });
     clearSelection();
     Get.snackbar(
@@ -592,11 +654,8 @@ class AdminListingsController extends GetxController {
 
   Future<void> rejectListings(List<String> ids, String reason) async {
     await _updateListingsStatus(ids, {
-      'isActive': false,
-      'isRejected': true,
-      'isBanned': false,
-      'rejectionReason': reason,
-      'updatedAt': FieldValue.serverTimestamp(),
+      'status': 'draft',
+      'meta': {'_listing_status': 'rejected', '_rejection_reason': reason},
     });
     clearSelection();
     Get.snackbar(
@@ -611,11 +670,8 @@ class AdminListingsController extends GetxController {
 
   Future<void> banListings(List<String> ids, String reason) async {
     await _updateListingsStatus(ids, {
-      'isActive': false,
-      'isRejected': false,
-      'isBanned': true,
-      'rejectionReason': reason,
-      'updatedAt': FieldValue.serverTimestamp(),
+      'status': 'draft',
+      'meta': {'_listing_status': 'banned', '_rejection_reason': reason},
     });
     clearSelection();
     Get.snackbar(
@@ -631,8 +687,11 @@ class AdminListingsController extends GetxController {
   // Added payment status update method
   Future<void> updatePaymentStatus(List<String> ids, String status) async {
     await _updateListingsStatus(ids, {
-      'paymentStatus': status,
-      'updatedAt': FieldValue.serverTimestamp(),
+      'meta': {
+        '_payment_status': status,
+        if (status == 'paid')
+          '_order_completed_date': DateTime.now().toIso8601String(),
+      },
     });
     clearSelection();
     Get.snackbar(
@@ -650,62 +709,51 @@ class AdminListingsController extends GetxController {
     List<String> newCategories,
   ) async {
     try {
-      final batch = _firestore.batch();
+      final authService = Get.find<AuthService>();
+      final token = authService.currentToken;
 
-      for (String id in ids) {
-        final listing = allListings.firstWhere((l) => l.id == id);
-        final collectionName = _getCollectionName(listing.type);
-
-        // Update category field based on listing type
-        String categoryField;
-        switch (listing.type) {
-          case 'Item':
-            categoryField = 'category';
-            break;
-          case 'Business':
-            categoryField = 'businessCategory';
-            break;
-          case 'Event':
-            categoryField = 'eventCategory';
-            break;
-          default:
-            categoryField = 'category';
-        }
-
-        batch.update(_firestore.collection(collectionName).doc(id), {
-          categoryField: newCategories,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+      if (token == null) {
+        Get.snackbar(
+          'Error',
+          'Authentication token not found',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+        return;
       }
 
-      await batch.commit();
-
-      // Update local data
+      // Update each listing via API
       for (String id in ids) {
-        final index = allListings.indexWhere((l) => l.id == id);
-        if (index != -1) {
-          final listing = allListings[index];
-          final updatedListing = AdminListingWrapper(
-            listing: listing.listing,
-            type: listing.type,
-            id: listing.id,
-            name: listing.name,
-            userId: listing.userId,
-            category: newCategories,
-            createdAt: listing.createdAt,
-            isActive: listing.isActive,
-            isBanned: listing.isBanned,
-            isRejected: listing.isRejected,
-            rejectionReason: listing.rejectionReason,
-            updatedAt: DateTime.now(),
-            paymentStatus: listing.paymentStatus,
+        final uri = Uri.parse(
+          'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
+        );
+
+        final response = await ApiClient.makeRequest(
+          uri: uri,
+          method: 'POST',
+          token: token,
+          body: {'at_biz_dir-category': newCategories},
+        );
+
+        if (!response.success) {
+          Get.snackbar(
+            'Error',
+            'Failed to update categories for listing $id: ${response.message}',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 2),
           );
-          allListings[index] = updatedListing;
+          return;
         }
       }
 
-      _applyFilters();
+      // Refresh the listings to get updated data
+      await loadListings(refresh: true);
       clearSelection();
+
       Get.snackbar(
         'Success',
         '${ids.length} listing(s) categories updated',
@@ -719,7 +767,7 @@ class AdminListingsController extends GetxController {
         'Error',
         'Failed to update categories: $e',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
+        backgroundColor: Colors.red,
         colorText: Colors.white,
         duration: const Duration(seconds: 2),
       );
@@ -728,15 +776,45 @@ class AdminListingsController extends GetxController {
 
   Future<void> deleteListings(List<String> ids) async {
     try {
-      final batch = _firestore.batch();
+      final authService = Get.find<AuthService>();
+      final token = authService.currentToken;
 
-      for (String id in ids) {
-        final listing = allListings.firstWhere((l) => l.id == id);
-        final collectionName = _getCollectionName(listing.type);
-        batch.delete(_firestore.collection(collectionName).doc(id));
+      if (token == null) {
+        Get.snackbar(
+          'Error',
+          'Authentication token not found',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+        return;
       }
 
-      await batch.commit();
+      // Delete each listing via API
+      for (String id in ids) {
+        final uri = Uri.parse(
+          'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
+        );
+
+        final response = await ApiClient.makeRequest(
+          uri: uri,
+          method: 'DELETE',
+          token: token,
+        );
+
+        if (!response.success) {
+          Get.snackbar(
+            'Error',
+            'Failed to delete listing $id: ${response.message}',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 2),
+          );
+          return;
+        }
+      }
 
       // Remove from local lists
       allListings.removeWhere((listing) => ids.contains(listing.id));
@@ -756,7 +834,7 @@ class AdminListingsController extends GetxController {
         'Error',
         'Failed to delete listings: $e',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
+        backgroundColor: Colors.red,
         colorText: Colors.white,
         duration: const Duration(seconds: 2),
       );
@@ -768,75 +846,71 @@ class AdminListingsController extends GetxController {
     Map<String, dynamic> updates,
   ) async {
     try {
-      final batch = _firestore.batch();
+      final authService = Get.find<AuthService>();
+      final token = authService.currentToken;
 
-      for (String id in ids) {
-        final listing = allListings.firstWhere((l) => l.id == id);
-        final collectionName = _getCollectionName(listing.type);
-        batch.update(_firestore.collection(collectionName).doc(id), updates);
+      if (token == null) {
+        Get.snackbar(
+          'Error',
+          'Authentication token not found',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+        return;
       }
 
-      await batch.commit();
-
-      // Update local data
+      // Update each listing via API
       for (String id in ids) {
-        final index = allListings.indexWhere((l) => l.id == id);
-        if (index != -1) {
-          final listing = allListings[index];
-          final updatedListing = AdminListingWrapper(
-            listing: listing.listing,
-            type: listing.type,
-            id: listing.id,
-            name: listing.name,
-            userId: listing.userId,
-            category: listing.category,
-            createdAt: listing.createdAt,
-            isActive: updates['isActive'] ?? listing.isActive,
-            isBanned: updates['isBanned'] ?? listing.isBanned,
-            isRejected: updates['isRejected'] ?? listing.isRejected,
-            rejectionReason:
-                updates['rejectionReason'] ?? listing.rejectionReason,
-            updatedAt: DateTime.now(),
-            paymentStatus: updates['paymentStatus'] ?? listing.paymentStatus,
+        final uri = Uri.parse(
+          'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
+        );
+
+        final response = await ApiClient.makeRequest(
+          uri: uri,
+          method: 'POST',
+          token: token,
+          body: updates,
+        );
+
+        if (!response.success) {
+          Get.snackbar(
+            'Error',
+            'Failed to update listing $id: ${response.message}',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 2),
           );
-          allListings[index] = updatedListing;
+          return;
         }
       }
 
-      _applyFilters();
+      // Refresh the listings to get updated data
+      await loadListings(refresh: true);
     } catch (e) {
       Get.snackbar(
         'Error',
         'Failed to update listings: $e',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
+        backgroundColor: Colors.red,
         colorText: Colors.white,
         duration: const Duration(seconds: 2),
       );
     }
   }
 
-  String _getCollectionName(String type) {
-    switch (type) {
-      case 'Item':
-        return 'items';
-      case 'Business':
-        return 'businesses';
-      case 'Event':
-        return 'events';
-      default:
-        return 'items';
-    }
-  }
-
   // Single item actions
   Future<void> toggleActiveStatus(String id) async {
     final listing = allListings.firstWhere((l) => l.id == id);
+    final isCurrentlyActive = listing.isActive ?? false;
+
     await _updateListingsStatus(
       [id],
       {
-        'isActive': !(listing.isActive ?? false),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'status': isCurrentlyActive ? 'draft' : 'publish',
+        'meta': {'_listing_status': isCurrentlyActive ? 'inactive' : 'active'},
       },
     );
   }
@@ -844,6 +918,76 @@ class AdminListingsController extends GetxController {
   // Search and filter methods
   void updateSearchQuery(String query) {
     searchQuery.value = query;
+    // Trigger API search when query changes
+    if (query.isNotEmpty) {
+      searchListings(query);
+    } else {
+      loadListings(refresh: true);
+    }
+  }
+
+  // Search listings using API
+  Future<void> searchListings(String query) async {
+    if (query.isEmpty) {
+      await loadListings(refresh: true);
+      return;
+    }
+
+    try {
+      final authService = Get.find<AuthService>();
+      final token = authService.currentToken;
+
+      if (token == null) {
+        Get.snackbar(
+          'Error',
+          'Authentication token not found',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+        return;
+      }
+
+      final baseUrl = 'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir';
+      final queryParams = <String, String>{
+        'search': query,
+        'per_page': itemsPerPage.toString(),
+        'context': 'edit',
+      };
+
+      final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
+
+      final response = await ApiClient.makeRequest(
+        uri: uri,
+        method: 'GET',
+        token: token,
+      );
+
+      if (response.success && response.data != null) {
+        final List<dynamic> listingsData = response.data as List<dynamic>;
+        final List<AdminListingWrapper> searchResults =
+            listingsData
+                .map(
+                  (data) => AdminListingWrapper.fromApiData(
+                    data as Map<String, dynamic>,
+                  ),
+                )
+                .toList();
+
+        allListings.value = searchResults;
+        _applyFilters();
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Search failed: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 2),
+      );
+    }
   }
 
   void updateCategoryFilter(String category) {
@@ -880,19 +1024,12 @@ class AdminListingsController extends GetxController {
   }
 
   // Pagination helpers
-  int get totalPages =>
-      ((allListings.length / itemsPerPage).ceil())
-          .clamp(1, double.infinity)
-          .toInt();
+  int get totalPagesCount => totalPages;
 
   void goToPage(int page) {
-    if (page >= 1 && page <= totalPages) {
+    if (page >= 1) {
       currentPage.value = page;
-      // Apply pagination to filtered results
-      final startIndex = (page - 1) * itemsPerPage;
-      final endIndex = (startIndex + itemsPerPage).clamp(0, allListings.length);
-      // This would require restructuring the filtering logic to work with pagination
-      // For now, we'll keep the current approach and load more data as needed
+      loadListings();
     }
   }
 }
@@ -1989,12 +2126,17 @@ class ManageListingsScreen extends StatelessWidget {
               ElevatedButton(
                 onPressed: () {
                   final updates = <String, dynamic>{
-                    'isActive': isActive,
-                    'isBanned': isBanned,
-                    'isRejected': isRejected,
-                    'rejectionReason':
-                        (isBanned || isRejected) ? rejectionReason : null,
-                    'updatedAt': FieldValue.serverTimestamp(),
+                    'status': isActive ? 'publish' : 'draft',
+                    'meta': {
+                      '_listing_status':
+                          isActive
+                              ? 'active'
+                              : (isBanned
+                                  ? 'banned'
+                                  : (isRejected ? 'rejected' : 'inactive')),
+                      if (isBanned || isRejected)
+                        '_rejection_reason': rejectionReason,
+                    },
                   };
 
                   controller._updateListingsStatus([listing.id!], updates);
@@ -2042,17 +2184,31 @@ class UserNameWidget extends StatelessWidget {
   Future<String> _getUserName(String userId) async {
     if (userId.isEmpty) return "Unknown";
 
-    final doc =
-        await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    try {
+      final authService = Get.find<AuthService>();
+      final token = authService.currentToken;
 
-    if (doc.exists) {
-      return doc.data()?['displayName'] ??
-          (doc.data()?['firstName'] ?? "Unknown") +
-              " " +
-              (doc.data()?['lastName'] ?? "");
-    } else {
-      return "Unknown";
+      if (token == null) return "Unknown";
+
+      final uri = Uri.parse(
+        'https://dedicatedcowboy.com/wp-json/wp/v2/users/$userId',
+      );
+
+      final response = await ApiClient.makeRequest(
+        uri: uri,
+        method: 'GET',
+        token: token,
+      );
+
+      if (response.success && response.data != null) {
+        final userData = response.data as Map<String, dynamic>;
+        return userData['name'] ?? userData['display_name'] ?? "Unknown";
+      }
+    } catch (e) {
+      print('Error fetching user name: $e');
     }
+
+    return "Unknown";
   }
 
   @override
