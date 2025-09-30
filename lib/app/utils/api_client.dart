@@ -357,8 +357,6 @@ class ApiClient {
           .get(uri, headers: headers)
           .timeout(requestTimeout);
 
-      print('Users API Response: ${response.body}');
-
       if (response.statusCode == 200) {
         final List<dynamic> usersJson = jsonDecode(response.body);
         final List<ApiUserModel> users =

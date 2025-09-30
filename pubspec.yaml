@@ -45,6 +45,9 @@ dependencies:
   data_table_2: ^2.6.0
   intl: ^0.20.2
   shimmer: ^3.0.0
+  cached_network_image: ^3.4.1
+  photo_view: ^0.15.0
+  image_picker: ^1.2.0
 
 dev_dependencies:
 

@@ -1,209 +1,57 @@
-// Controller for managing listings
+// Controller for managing listings with enhanced filtering
+import 'package:dedicated_cow_boy_admin/app/models/model.dart';
+import 'package:dedicated_cow_boy_admin/app/modules/widgets.dart';
 import 'package:dedicated_cow_boy_admin/app/utils/api_client.dart';
 import 'package:dedicated_cow_boy_admin/app/new/auth_service.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-
-// Enhanced ListingWrapper with admin fields
-class AdminListingWrapper {
-  final dynamic listing;
-  final String type;
-  final String? id;
-  final String? name;
-  final String? userId;
-  final List<String>? category;
-  final DateTime? createdAt;
-  final bool? isActive;
-  final bool? isBanned;
-  final bool? isRejected;
-  final String? rejectionReason;
-  final DateTime? updatedAt;
-  final String? paymentStatus; // Added payment status
-
-  AdminListingWrapper({
-    required this.listing,
-    required this.type,
-    this.id,
-    this.name,
-    this.userId,
-    this.category,
-    this.createdAt,
-    this.isActive,
-    this.isBanned,
-    this.isRejected,
-    this.rejectionReason,
-    this.updatedAt,
-    this.paymentStatus, // Added payment status
-  });
-
-  factory AdminListingWrapper.fromApiData(Map<String, dynamic> data) {
-    return AdminListingWrapper(
-      listing: data,
-      type: 'Business', // All listings from at_biz_dir are business type
-      id: data['id']?.toString(),
-      name: data['title']?['rendered'] ?? 'Unnamed Listing',
-      userId: data['author']?.toString(),
-      category: _getCategoryFromApi(data),
-      createdAt: _parseDate(data['date']),
-      isActive: _getIsActiveFromApi(data),
-      isBanned: _getIsBannedFromApi(data),
-      isRejected: _getIsRejectedFromApi(data),
-      rejectionReason: _getRejectionReasonFromApi(data),
-      updatedAt: _parseDate(data['modified']),
-      paymentStatus: _getPaymentStatusFromApi(data),
-    );
-  }
-
-  // Helper methods for API data parsing
-  static DateTime? _parseDate(dynamic dateString) {
-    if (dateString == null) return null;
-    try {
-      return DateTime.parse(dateString.toString());
-    } catch (e) {
-      return null;
-    }
-  }
-
-  static List<String>? _getCategoryFromApi(Map<String, dynamic> data) {
-    final categories = data['at_biz_dir-category'] as List?;
-    if (categories != null && categories.isNotEmpty) {
-      return categories.map((e) => e.toString()).toList();
-    }
-    return null;
-  }
-
-  static bool? _getIsActiveFromApi(Map<String, dynamic> data) {
-    final status = data['status']?.toString();
-    return status == 'publish';
-  }
-
-  static bool? _getIsBannedFromApi(Map<String, dynamic> data) {
-    // Check if listing is banned based on meta data
-    final meta = data['meta'];
-    if (meta != null) {
-      final listingStatus = meta['_listing_status']?.first?.toString();
-      return listingStatus == 'banned';
-    }
-    return false;
-  }
-
-  static bool? _getIsRejectedFromApi(Map<String, dynamic> data) {
-    final meta = data['meta'];
-    if (meta != null) {
-      final listingStatus = meta['_listing_status']?.first?.toString();
-      return listingStatus == 'rejected';
-    }
-    return false;
-  }
-
-  static String? _getRejectionReasonFromApi(Map<String, dynamic> data) {
-    final meta = data['meta'];
-    if (meta != null) {
-      return meta['_rejection_reason']?.first?.toString();
-    }
-    return null;
-  }
-
-  static String? _getPaymentStatusFromApi(Map<String, dynamic> data) {
-    final meta = data['meta'];
-    if (meta != null) {
-      final orderCompleted = meta['_order_completed_date']?.first?.toString();
-      if (orderCompleted != null && orderCompleted.isNotEmpty) {
-        return 'paid';
-      }
-    }
-    return 'pending';
-  }
-
-  String get status {
-    if (isBanned == true) return 'Banned';
-    if (isRejected == true) return 'Rejected';
-    if (isActive == true) return 'Accepted';
-    return 'Pending';
-  }
-
-  Color get statusColor {
-    switch (status) {
-      case 'Accepted':
-        return Color(0xff364C63);
-      case 'Pending':
-        return Color(0xFFF2B342);
-      case 'Rejected':
-        return Colors.red;
-      case 'Banned':
-        return Colors.red[900]!;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  // Payment status color
-  Color get paymentStatusColor {
-    switch (paymentStatus?.toLowerCase()) {
-      case 'paid':
-        return Color(0xFFF2B342);
-      case 'pending':
-        return Color(0xff364C63);
-      case 'failed':
-        return Colors.red;
-      default:
-        return Color(0xff364C63);
-    }
-  }
-}
+import 'dart:convert';
 
 // GetX Controller for Admin Listings Management
 class AdminListingsController extends GetxController {
   // Observable variables
-  final RxList<AdminListingWrapper> allListings = <AdminListingWrapper>[].obs;
-  final RxList<AdminListingWrapper> filteredListings =
-      <AdminListingWrapper>[].obs;
+  final RxList<UnifiedListing> allListings = <UnifiedListing>[].obs;
+  final RxList<UnifiedListing> filteredListings = <UnifiedListing>[].obs;
   final RxList<String> selectedListings = <String>[].obs;
   final RxBool isLoading = false.obs;
   final RxBool isLoadingMore = false.obs;
   final RxString searchQuery = ''.obs;
   final RxString selectedCategory = 'All'.obs;
   final RxString selectedStatus = 'All'.obs;
-  final RxString selectedPaymentStatus =
-      'All'.obs; // Added payment status filter
-  final RxString selectedDateFilter = 'Recent'.obs;
-  final RxString sortBy = 'Recent'.obs;
+  final RxString selectedListingType = 'All'.obs;
+  final RxString selectedDateFilter = 'All'.obs;
+  final RxString sortBy = 'date'.obs;
+  final RxString sortOrder = 'DESC'.obs;
   final RxInt currentPage = 1.obs;
   final RxBool hasMoreData = true.obs;
+  final RxInt totalItems = 0.obs;
+  final RxInt totalPages = 0.obs;
 
   // Pagination
   static const int itemsPerPage = 20;
-  int totalPages = 1;
-
-  // Categories mapping based on listing types
-  final Map<String, List<String>> categoriesStatic = {
-    "Business & Services": [
-      'Business & Services',
-      "Western Retail Shops",
-      "Boutiques",
-      "Ranch Services",
-      "All Other",
-    ],
-    "Home & Ranch Decor": ['Home & Ranch Decor', "Furniture", "Art", "Decor"],
-    "Tack & Live Stock": [
-      "Tack & Live Stock",
-      "Tack",
-      "Horses",
-      "Livestock",
-      "Miscellaneous",
-    ],
-    "Western Life & Events": [
-      'Western Life & Events',
-      "Rodeos",
-      "Barrel Races",
-      "Team Roping",
-      "All Other Events",
-    ],
-    "Western Style": ["Womens", "Mens", "Kids", "Accessories"],
-  };
 
   // Filter options
+  final List<String> statusOptions = [
+    'All',
+    'publish',
+    'draft',
+    'pending',
+    'private',
+  ];
+
+  final List<String> listingTypeOptions = ['All', 'Business', 'Item', 'Event'];
+
+  final List<String> dateFilters = [
+    'All',
+    'Today',
+    'This Week',
+    'This Month',
+    'Last 3 Months',
+  ];
+
+  final List<String> sortOptions = ['date', 'modified', 'title'];
+
   final List<String> categories = [
     'All',
     'All Other',
@@ -227,320 +75,252 @@ class AdminListingsController extends GetxController {
     'Womens',
   ];
 
-  final List<String> statusOptions = [
-    'All',
-    'Accepted',
-    'Pending',
-    'Rejected',
-    'Banned',
-  ];
-
-  // Added payment status options
-  final List<String> paymentStatusOptions = [
-    'All',
-    'Pending',
-    'Paid',
-    'Failed',
-  ];
-
-  final List<String> dateFilters = [
-    'Recent',
-    'This Week',
-    'This Month',
-    'Last 3 Months',
-    'Older',
-  ];
-
-  final List<String> sortOptions = ['Recent', 'Oldest', 'A-Z', 'Z-A', 'Status'];
-
   @override
   void onInit() {
     super.onInit();
 
-    // Set up reactive filtering
-    ever(searchQuery, (_) => _applyFilters());
-    ever(selectedCategory, (_) => _applyFilters());
-    ever(selectedStatus, (_) => _applyFilters());
-    ever(
-      selectedPaymentStatus,
-      (_) => _applyFilters(),
-    ); // Added payment status filter
-    ever(selectedDateFilter, (_) => _applyFilters());
-    ever(sortBy, (_) => _applyFilters());
+    // Set up reactive filtering - but don't trigger on page changes
+    ever(searchQuery, (_) => _debounceSearch());
+    ever(selectedCategory, (_) => _resetAndLoad());
+    ever(selectedStatus, (_) => _resetAndLoad());
+    ever(selectedListingType, (_) => _resetAndLoad());
+    ever(selectedDateFilter, (_) => _resetAndLoad());
+    ever(sortBy, (_) => _resetAndLoad());
+    ever(sortOrder, (_) => _resetAndLoad());
 
-    // Test API connectivity and load listings after a delay
-    Future.delayed(const Duration(milliseconds: 1000), () async {
-      await _testApiConnectivity();
-      loadListings();
+    // Initial load with loading state
+    Future.delayed(const Duration(milliseconds: 100), () {
+      loadListings(refresh: true);
     });
   }
 
-  // Test API connectivity
-  Future<void> _testApiConnectivity() async {
-    try {
-      print('Testing API connectivity...');
-      final uri = Uri.parse(
-        'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir?per_page=1',
-      );
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
-      print('API test response: ${response.statusCode}');
-      if (response.statusCode == 200) {
-        print('API is accessible');
-      } else {
-        print('API returned status: ${response.statusCode}');
+  // Debounced search to avoid too many API calls
+  void _debounceSearch() {
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (searchQuery.value.isNotEmpty) {
+        _resetAndLoad();
+      } else if (allListings.isEmpty) {
+        _resetAndLoad();
       }
-    } catch (e) {
-      print('API connectivity test failed: $e');
-    }
+    });
   }
 
-  // Load listings with pagination from WordPress API
+  void _resetAndLoad() {
+    currentPage.value = 1;
+    hasMoreData.value = true;
+    loadListings(refresh: true);
+  }
+
+  // Load listings with pagination and filters from WordPress API
   Future<void> loadListings({bool refresh = false}) async {
     if (refresh) {
       currentPage.value = 1;
       hasMoreData.value = true;
       allListings.clear();
+      filteredListings.clear();
+      selectedListings.clear();
     }
 
     if (isLoading.value || (!hasMoreData.value && !refresh)) return;
 
-    isLoading.value = refresh;
-    isLoadingMore.value = !refresh;
+    // Set loading state
+    if (refresh || currentPage.value == 1) {
+      isLoading.value = true;
+      isLoadingMore.value = false;
+    } else {
+      isLoading.value = false;
+      isLoadingMore.value = true;
+    }
 
     try {
-      // Get auth token with error handling
+      // Get auth token
       AuthService? authService;
       try {
         authService = Get.find<AuthService>();
       } catch (e) {
         print('AuthService not found: $e');
-        Get.snackbar(
-          'Error',
+        _showError(
           'Authentication service not available. Please restart the app.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 3),
         );
         return;
       }
 
       final token = authService.currentToken;
-      print('Loading listings - Token: ${token != null ? 'exists' : 'null'}');
-
       if (token == null) {
         print('No authentication token found');
-        Get.snackbar(
-          'Error',
-          'Authentication token not found. Please log in again.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 3),
-        );
+        _showError('Authentication token not found. Please log in again.');
         return;
       }
 
-      // Build API URL with parameters
-      final baseUrl = 'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir';
+      // Build API URL with filters
+      final baseUrl = 'https://dedicatedcowboy.com/wp-json/wp/v2/all_listings';
       final queryParams = <String, String>{
         'page': currentPage.value.toString(),
         'per_page': itemsPerPage.toString(),
-        'context': 'edit', // Get full data including meta
+        'orderby': sortBy.value,
+        'order': sortOrder.value,
       };
 
-      // Add search if provided
+      // Add search filter
       if (searchQuery.value.isNotEmpty) {
         queryParams['search'] = searchQuery.value;
+      }
+
+      // Add status filter
+      if (selectedStatus.value != 'All') {
+        queryParams['status'] = selectedStatus.value;
+      }
+
+      // Add listing type filter
+      if (selectedListingType.value != 'All') {
+        final typeId = _getListingTypeId(selectedListingType.value);
+        if (typeId != null) {
+          queryParams['listing_type'] = typeId.toString();
+        }
+      }
+
+      // Add category filter
+      if (selectedCategory.value != 'All') {
+        queryParams['category'] = selectedCategory.value;
+      }
+
+      // Add date filter
+      if (selectedDateFilter.value != 'All') {
+        final dateRange = _getDateRange(selectedDateFilter.value);
+        if (dateRange != null) {
+          if (dateRange['after'] != null) {
+            queryParams['date_after'] = dateRange['after']!;
+          }
+          if (dateRange['before'] != null) {
+            queryParams['date_before'] = dateRange['before']!;
+          }
+        }
       }
 
       final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
 
       print('Making API call to: $uri');
-      print('Query params: $queryParams');
+      print('Current page: ${currentPage.value}');
 
       // Make API call
-      final response = await ApiClient.makeRequest(
-        uri: uri,
-        method: 'GET',
-        token: token,
-      );
+      final response = await http
+          .get(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
 
-      print('API Response - Success: ${response.success}');
       print('API Response - Status Code: ${response.statusCode}');
-      print('API Response - Message: ${response.message}');
 
-      if (response.success && response.data != null) {
-        final List<dynamic> listingsData = response.data as List<dynamic>;
-        final List<AdminListingWrapper> newListings =
+      if (response.statusCode == 200) {
+        // Parse pagination headers
+        final totalItemsHeader = response.headers['x-wp-total'];
+        final totalPagesHeader = response.headers['x-wp-totalpages'];
+
+        if (totalItemsHeader != null) {
+          totalItems.value = int.tryParse(totalItemsHeader) ?? 0;
+        }
+        if (totalPagesHeader != null) {
+          totalPages.value = int.tryParse(totalPagesHeader) ?? 1;
+        }
+
+        print(
+          'Total items: ${totalItems.value}, Total pages: ${totalPages.value}',
+        );
+
+        final List<dynamic> listingsData =
+            json.decode(response.body) as List<dynamic>;
+        final List<UnifiedListing> newListings =
             listingsData
                 .map(
-                  (data) => AdminListingWrapper.fromApiData(
-                    data as Map<String, dynamic>,
-                  ),
+                  (data) =>
+                      UnifiedListing.fromJson(data as Map<String, dynamic>),
                 )
                 .toList();
 
-        if (refresh) {
-          allListings.value = newListings;
-        } else {
-          allListings.addAll(newListings);
-        }
+        // For pagination, replace data instead of appending
+        allListings.value = newListings;
+        filteredListings.value = List.from(allListings);
 
-        // Check if there are more pages - WordPress API doesn't provide total pages in response
-        // We'll assume there are more pages if we got a full page of results
-        hasMoreData.value = newListings.length == itemsPerPage;
+        // Check if there are more pages
+        hasMoreData.value = currentPage.value < totalPages.value;
 
-        _applyFilters();
-      } else {
-        Get.snackbar(
-          'Error',
-          'Failed to load listings: ${response.message ?? 'Unknown error'}',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
+        print(
+          'Loaded ${newListings.length} listings for page ${currentPage.value}',
         );
+      } else if (response.statusCode == 401) {
+        _showError('Authentication failed. Please log in again.');
+      } else if (response.statusCode == 400) {
+        // Bad request - might be invalid page number
+        if (currentPage.value > 1) {
+          currentPage.value = 1;
+          await loadListings(refresh: true);
+        } else {
+          _showError('Failed to load listings. Status: ${response.statusCode}');
+        }
+      } else {
+        _showError('Failed to load listings. Status: ${response.statusCode}');
       }
     } catch (e) {
       print('Error loading listings: $e');
-      print('Error type: ${e.runtimeType}');
 
       String errorMessage = 'Failed to load listings';
-      if (e.toString().contains('network-error')) {
+      if (e.toString().contains('TimeoutException')) {
+        errorMessage = 'Request timeout. Please check your connection.';
+      } else if (e.toString().contains('SocketException')) {
         errorMessage = 'No internet connection. Please check your network.';
-      } else if (e.toString().contains('response-processing-error')) {
-        errorMessage = 'Server response error. Please try again.';
-      } else if (e.toString().contains('authentication')) {
-        errorMessage = 'Authentication failed. Please log in again.';
       } else {
         errorMessage = 'Failed to load listings: ${e.toString()}';
       }
 
-      Get.snackbar(
-        'Error',
-        errorMessage,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 4),
-      );
+      _showError(errorMessage);
     } finally {
       isLoading.value = false;
       isLoadingMore.value = false;
     }
   }
 
-  void _applyFilters() {
-    List<AdminListingWrapper> filtered = List.from(allListings);
-
-    // Apply search filter
-    if (searchQuery.value.isNotEmpty) {
-      filtered =
-          filtered.where((listing) {
-            final name = listing.name?.toLowerCase() ?? '';
-            final categories =
-                listing.category?.map((c) => c.toLowerCase()).toList() ?? [];
-            final query = searchQuery.value.toLowerCase();
-
-            return name.contains(query) ||
-                categories.any((category) => category.contains(query));
-          }).toList();
+  // Helper method to get listing type ID
+  int? _getListingTypeId(String type) {
+    switch (type) {
+      case 'Business':
+        return 130;
+      case 'Item':
+        return 131;
+      case 'Event':
+        return 335;
+      default:
+        return null;
     }
-
-    // Apply category filter
-    if (selectedCategory.value != 'All') {
-      filtered =
-          filtered
-              .where(
-                (listing) =>
-                    listing.category?.contains(selectedCategory.value) ?? false,
-              )
-              .toList();
-    }
-
-    // Apply status filter
-    if (selectedStatus.value != 'All') {
-      filtered =
-          filtered
-              .where((listing) => listing.status == selectedStatus.value)
-              .toList();
-    }
-
-    // Apply payment status filter
-    if (selectedPaymentStatus.value != 'All') {
-      filtered =
-          filtered
-              .where(
-                (listing) =>
-                    listing.paymentStatus?.toLowerCase() ==
-                    selectedPaymentStatus.value.toLowerCase(),
-              )
-              .toList();
-    }
-
-    // Apply date filter
-    if (selectedDateFilter.value != 'Recent') {
-      final now = DateTime.now();
-      filtered =
-          filtered.where((listing) {
-            if (listing.createdAt == null) return false;
-
-            switch (selectedDateFilter.value) {
-              case 'This Week':
-                return listing.createdAt!.isAfter(
-                  now.subtract(Duration(days: 7)),
-                );
-              case 'This Month':
-                return listing.createdAt!.isAfter(
-                  now.subtract(Duration(days: 30)),
-                );
-              case 'Last 3 Months':
-                return listing.createdAt!.isAfter(
-                  now.subtract(Duration(days: 90)),
-                );
-              case 'Older':
-                return listing.createdAt!.isBefore(
-                  now.subtract(Duration(days: 90)),
-                );
-              default:
-                return true;
-            }
-          }).toList();
-    }
-
-    // Apply sorting
-    _applySorting(filtered);
-
-    filteredListings.value = filtered;
   }
 
-  void _applySorting(List<AdminListingWrapper> listings) {
-    switch (sortBy.value) {
-      case 'Recent':
-        listings.sort(
-          (a, b) => (b.createdAt ?? DateTime(2000)).compareTo(
-            a.createdAt ?? DateTime(2000),
-          ),
-        );
+  // Helper method to get date range
+  Map<String, String>? _getDateRange(String filter) {
+    final now = DateTime.now();
+    String? after;
+    String? before;
+
+    switch (filter) {
+      case 'Today':
+        after = DateTime(now.year, now.month, now.day).toIso8601String();
         break;
-      case 'Oldest':
-        listings.sort(
-          (a, b) => (a.createdAt ?? DateTime(2000)).compareTo(
-            b.createdAt ?? DateTime(2000),
-          ),
-        );
+      case 'This Week':
+        after = now.subtract(Duration(days: 7)).toIso8601String();
         break;
-      case 'A-Z':
-        listings.sort((a, b) => (a.name ?? '').compareTo(b.name ?? ''));
+      case 'This Month':
+        after = DateTime(now.year, now.month, 1).toIso8601String();
         break;
-      case 'Z-A':
-        listings.sort((a, b) => (b.name ?? '').compareTo(a.name ?? ''));
+      case 'Last 3 Months':
+        after = DateTime(now.year, now.month - 3, now.day).toIso8601String();
         break;
-      case 'Status':
-        listings.sort((a, b) => a.status.compareTo(b.status));
-        break;
+      default:
+        return null;
     }
+
+    return {'after': after, 'before': before.toString()};
   }
 
   // Selection methods
@@ -550,8 +330,8 @@ class AdminListingsController extends GetxController {
     } else {
       selectedListings.add(id);
     }
+    // Force update
     selectedListings.refresh();
-    update();
   }
 
   void selectAll() {
@@ -559,435 +339,204 @@ class AdminListingsController extends GetxController {
       selectedListings.clear();
     } else {
       selectedListings.value =
-          filteredListings
-              .map((listing) => listing.id!)
-              .cast<String>()
-              .toList();
+          filteredListings.map((listing) => listing.id.toString()).toList();
     }
+    // Force update
     selectedListings.refresh();
-    update();
   }
 
   void clearSelection() {
     selectedListings.clear();
   }
 
-  // Check if selected listings are all the same type for category update
-  bool get canUpdateCategory {
-    if (selectedListings.isEmpty) return false;
-
-    final types =
-        selectedListings
-            .map(
-              (id) => allListings.firstWhere(
-                (l) => l.id == id,
-                orElse:
-                    () => AdminListingWrapper(listing: '', type: '', id: ''),
-              ),
-            )
-            .where((listing) => listing.id != '')
-            .map((listing) => listing.type)
-            .toSet();
-
-    return types.length == 1;
-  }
-
-  // Get categories for selected listing type
-  List<String> getCategoriesForSelectedType() {
-    if (selectedListings.isEmpty) return [];
-
-    final firstListing = allListings.firstWhere(
-      (l) => l.id == selectedListings.first,
-    );
-    return getCategoriesForType(firstListing.type);
-  }
-
-  List<String> getCategoriesForType(String type) {
-    switch (type) {
-      case 'Item':
-        return [
-          ...categoriesStatic["Home & Ranch Decor"]!,
-          ...categoriesStatic["Tack & Live Stock"]!,
-          ...categoriesStatic["Western Style"]!,
-        ];
-      case 'Event':
-        return categoriesStatic["Western Life & Events"]!;
-      case 'Business':
-        return categoriesStatic["Business & Services"]!;
-      default:
-        return [];
-    }
-  }
-
-  // Action methods - Updated to use WordPress API
-  Future<void> activateListings(List<String> ids) async {
-    await _updateListingsStatus(ids, {
-      'status': 'publish',
-      'meta': {'_listing_status': 'active', '_rejection_reason': ''},
-    });
-    clearSelection();
-    Get.snackbar(
-      'Success',
-      '${ids.length} listing(s) activated',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Color(0xFFF2B342),
-      colorText: Colors.white,
-      duration: const Duration(seconds: 2),
-    );
-  }
-
-  Future<void> deactivateListings(List<String> ids) async {
-    await _updateListingsStatus(ids, {
-      'status': 'draft',
-      'meta': {'_listing_status': 'inactive'},
-    });
-    clearSelection();
-    Get.snackbar(
-      'Success',
-      '${ids.length} listing(s) deactivated',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Color(0xFFF2B342),
-      colorText: Colors.white,
-      duration: const Duration(seconds: 2),
-    );
-  }
-
-  Future<void> rejectListings(List<String> ids, String reason) async {
-    await _updateListingsStatus(ids, {
-      'status': 'draft',
-      'meta': {'_listing_status': 'rejected', '_rejection_reason': reason},
-    });
-    clearSelection();
-    Get.snackbar(
-      'Success',
-      '${ids.length} listing(s) rejected',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Color(0xFFF2B342),
-      colorText: Colors.white,
-      duration: const Duration(seconds: 2),
-    );
-  }
-
-  Future<void> banListings(List<String> ids, String reason) async {
-    await _updateListingsStatus(ids, {
-      'status': 'draft',
-      'meta': {'_listing_status': 'banned', '_rejection_reason': reason},
-    });
-    clearSelection();
-    Get.snackbar(
-      'Success',
-      '${ids.length} listing(s) banned',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Color(0xFFF2B342),
-      colorText: Colors.white,
-      duration: const Duration(seconds: 2),
-    );
-  }
-
-  // Added payment status update method
-  Future<void> updatePaymentStatus(List<String> ids, String status) async {
-    await _updateListingsStatus(ids, {
-      'meta': {
-        '_payment_status': status,
-        if (status == 'paid')
-          '_order_completed_date': DateTime.now().toIso8601String(),
-      },
-    });
-    clearSelection();
-    Get.snackbar(
-      'Success',
-      '${ids.length} listing(s) payment status updated to $status',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Color(0xFFF2B342),
-      colorText: Colors.white,
-      duration: const Duration(seconds: 2),
-    );
-  }
-
-  Future<void> updateListingCategories(
-    List<String> ids,
-    List<String> newCategories,
-  ) async {
+  // Update listing status (publish/draft)
+  Future<void> updateListingStatus(int id, String status) async {
     try {
       final authService = Get.find<AuthService>();
       final token = authService.currentToken;
 
       if (token == null) {
-        Get.snackbar(
-          'Error',
-          'Authentication token not found',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
+        _showError('Authentication token not found');
         return;
       }
 
-      // Update each listing via API
-      for (String id in ids) {
-        final uri = Uri.parse(
-          'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
-        );
+      final response = await http
+          .put(
+            Uri.parse(
+              'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
+            ),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'status': status}),
+          )
+          .timeout(const Duration(seconds: 30));
 
-        final response = await ApiClient.makeRequest(
-          uri: uri,
-          method: 'POST',
-          token: token,
-          body: {'at_biz_dir-category': newCategories},
-        );
-
-        if (!response.success) {
-          Get.snackbar(
-            'Error',
-            'Failed to update categories for listing $id: ${response.message}',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-            duration: const Duration(seconds: 2),
-          );
-          return;
-        }
+      if (response.statusCode == 200) {
+        _showSuccess('Listing status updated to $status');
+        await loadListings(refresh: true);
+      } else {
+        _showError('Failed to update status: ${response.statusCode}');
       }
-
-      // Refresh the listings to get updated data
-      await loadListings(refresh: true);
-      clearSelection();
-
-      Get.snackbar(
-        'Success',
-        '${ids.length} listing(s) categories updated',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update categories: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
+      _showError('Failed to update status: $e');
     }
   }
 
+  // Update listing details
+  Future<void> updateListing(int id, Map<String, dynamic> body) async {
+    try {
+      final authService = Get.find<AuthService>();
+      final token = authService.currentToken;
+
+      if (token == null) {
+        _showError('Authentication token not found');
+        return;
+      }
+
+      final response = await http
+          .put(
+            Uri.parse(
+              'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
+            ),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        _showSuccess('Listing updated successfully');
+        await loadListings(refresh: true);
+      } else {
+        _showError('Failed to update listing: ${response.statusCode}');
+      }
+    } catch (e) {
+      _showError('Failed to update listing: $e');
+    }
+  }
+
+  // Delete single listing
+  Future<void> deleteListing(int id) async {
+    try {
+      final authService = Get.find<AuthService>();
+      final token = authService.currentToken;
+
+      if (token == null) {
+        _showError('Authentication token not found');
+        return;
+      }
+
+      final response = await http
+          .delete(
+            Uri.parse(
+              'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
+            ),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        allListings.removeWhere((listing) => listing.id == id);
+        filteredListings.removeWhere((listing) => listing.id == id);
+        _showSuccess('Listing deleted successfully');
+      } else {
+        _showError('Failed to delete listing: ${response.statusCode}');
+      }
+    } catch (e) {
+      _showError('Failed to delete listing: $e');
+    }
+  }
+
+  // Delete multiple listings
   Future<void> deleteListings(List<String> ids) async {
     try {
       final authService = Get.find<AuthService>();
       final token = authService.currentToken;
 
       if (token == null) {
-        Get.snackbar(
-          'Error',
-          'Authentication token not found',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
+        _showError('Authentication token not found');
         return;
       }
 
-      // Delete each listing via API
       for (String id in ids) {
-        final uri = Uri.parse(
-          'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
-        );
+        final response = await http
+            .delete(
+              Uri.parse(
+                'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
+              ),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+            )
+            .timeout(const Duration(seconds: 30));
 
-        final response = await ApiClient.makeRequest(
-          uri: uri,
-          method: 'DELETE',
-          token: token,
-        );
-
-        if (!response.success) {
-          Get.snackbar(
-            'Error',
-            'Failed to delete listing $id: ${response.message}',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-            duration: const Duration(seconds: 2),
-          );
+        if (response.statusCode != 200) {
+          _showError('Failed to delete listing $id');
           return;
         }
       }
 
-      // Remove from local lists
-      allListings.removeWhere((listing) => ids.contains(listing.id));
-      _applyFilters();
+      allListings.removeWhere((listing) => ids.contains(listing.id.toString()));
+      filteredListings.removeWhere(
+        (listing) => ids.contains(listing.id.toString()),
+      );
       clearSelection();
-
-      Get.snackbar(
-        'Success',
-        '${ids.length} listing(s) deleted',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
+      _showSuccess('${ids.length} listing(s) deleted successfully');
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete listings: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
+      _showError('Failed to delete listings: $e');
     }
   }
 
-  Future<void> _updateListingsStatus(
-    List<String> ids,
-    Map<String, dynamic> updates,
-  ) async {
+  // Bulk status update
+  Future<void> bulkUpdateStatus(List<String> ids, String status) async {
     try {
       final authService = Get.find<AuthService>();
       final token = authService.currentToken;
 
       if (token == null) {
-        Get.snackbar(
-          'Error',
-          'Authentication token not found',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
+        _showError('Authentication token not found');
         return;
       }
 
-      // Update each listing via API
       for (String id in ids) {
-        final uri = Uri.parse(
-          'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
-        );
+        final response = await http
+            .put(
+              Uri.parse(
+                'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir/$id',
+              ),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({'status': status}),
+            )
+            .timeout(const Duration(seconds: 30));
 
-        final response = await ApiClient.makeRequest(
-          uri: uri,
-          method: 'POST',
-          token: token,
-          body: updates,
-        );
-
-        if (!response.success) {
-          Get.snackbar(
-            'Error',
-            'Failed to update listing $id: ${response.message}',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-            duration: const Duration(seconds: 2),
-          );
+        if (response.statusCode != 200) {
+          _showError('Failed to update listing $id');
           return;
         }
       }
 
-      // Refresh the listings to get updated data
+      clearSelection();
+      _showSuccess('${ids.length} listing(s) updated to $status');
       await loadListings(refresh: true);
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update listings: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
+      _showError('Failed to update listings: $e');
     }
   }
 
-  // Single item actions
-  Future<void> toggleActiveStatus(String id) async {
-    final listing = allListings.firstWhere((l) => l.id == id);
-    final isCurrentlyActive = listing.isActive ?? false;
-
-    await _updateListingsStatus(
-      [id],
-      {
-        'status': isCurrentlyActive ? 'draft' : 'publish',
-        'meta': {'_listing_status': isCurrentlyActive ? 'inactive' : 'active'},
-      },
-    );
-  }
-
-  // Search and filter methods
+  // Filter update methods
   void updateSearchQuery(String query) {
     searchQuery.value = query;
-    // Trigger API search when query changes
-    if (query.isNotEmpty) {
-      searchListings(query);
-    } else {
-      loadListings(refresh: true);
-    }
-  }
-
-  // Search listings using API
-  Future<void> searchListings(String query) async {
-    if (query.isEmpty) {
-      await loadListings(refresh: true);
-      return;
-    }
-
-    try {
-      final authService = Get.find<AuthService>();
-      final token = authService.currentToken;
-
-      if (token == null) {
-        Get.snackbar(
-          'Error',
-          'Authentication token not found',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
-
-      final baseUrl = 'https://dedicatedcowboy.com/wp-json/wp/v2/at_biz_dir';
-      final queryParams = <String, String>{
-        'search': query,
-        'per_page': itemsPerPage.toString(),
-        'context': 'edit',
-      };
-
-      final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
-
-      final response = await ApiClient.makeRequest(
-        uri: uri,
-        method: 'GET',
-        token: token,
-      );
-
-      if (response.success && response.data != null) {
-        final List<dynamic> listingsData = response.data as List<dynamic>;
-        final List<AdminListingWrapper> searchResults =
-            listingsData
-                .map(
-                  (data) => AdminListingWrapper.fromApiData(
-                    data as Map<String, dynamic>,
-                  ),
-                )
-                .toList();
-
-        allListings.value = searchResults;
-        _applyFilters();
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Search failed: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
-    }
   }
 
   void updateCategoryFilter(String category) {
@@ -998,8 +547,8 @@ class AdminListingsController extends GetxController {
     selectedStatus.value = status;
   }
 
-  void updatePaymentStatusFilter(String status) {
-    selectedPaymentStatus.value = status;
+  void updateListingTypeFilter(String type) {
+    selectedListingType.value = type;
   }
 
   void updateDateFilter(String dateFilter) {
@@ -1010,31 +559,56 @@ class AdminListingsController extends GetxController {
     sortBy.value = sort;
   }
 
-  // Refresh data
-  @override
-  Future<void> refresh() async {
-    await loadListings(refresh: true);
+  void updateSortOrder(String order) {
+    sortOrder.value = order;
   }
 
-  // Load more data for pagination
+  // Pagination helpers
   Future<void> loadMore() async {
     if (!hasMoreData.value || isLoadingMore.value) return;
     currentPage.value++;
     await loadListings();
   }
 
-  // Pagination helpers
-  int get totalPagesCount => totalPages;
-
   void goToPage(int page) {
-    if (page >= 1) {
+    if (page >= 1 && page <= totalPages.value && page != currentPage.value) {
       currentPage.value = page;
-      loadListings();
+      selectedListings.clear(); // Clear selection on page change
+      loadListings(refresh: false); // Don't clear all data, just load new page
     }
+  }
+
+  // Refresh data
+  @override
+  Future<void> refresh() async {
+    await loadListings(refresh: true);
+  }
+
+  // Helper methods for notifications
+  void _showSuccess(String message) {
+    Get.snackbar(
+      'Success',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Color(0xFFF2B342),
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  void _showError(String message) {
+    Get.snackbar(
+      'Error',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 3),
+    );
   }
 }
 
-// Enhanced ManageListingsScreen with exact design match and proper functionality
+// Enhanced ManageListingsScreen with proper functionality
 class ManageListingsScreen extends StatelessWidget {
   const ManageListingsScreen({super.key});
 
@@ -1078,18 +652,24 @@ class ManageListingsScreen extends StatelessWidget {
                       Spacer(),
                       Obx(
                         () => Text(
-                          "${controller.filteredListings.length} items",
+                          "${controller.totalItems.value} total items | Page ${controller.currentPage.value} of ${controller.totalPages.value}",
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
                           ),
                         ),
                       ),
+                      SizedBox(width: 16),
+                      IconButton(
+                        icon: Icon(Icons.refresh),
+                        onPressed: () => controller.loadListings(refresh: true),
+                        tooltip: 'Refresh',
+                      ),
                     ],
                   ),
                 ),
 
-                // Search and Filters Row - Made responsive
+                // Search and Filters Row
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: LayoutBuilder(
@@ -1112,17 +692,29 @@ class ManageListingsScreen extends StatelessWidget {
                             ),
                             child: TextField(
                               decoration: InputDecoration(
-                                hintText: 'Search...',
+                                hintText: 'Search listings...',
                                 hintStyle: TextStyle(
                                   color: Colors.grey[600],
                                   fontSize: 14,
                                 ),
                                 border: InputBorder.none,
                                 contentPadding: EdgeInsets.zero,
+                                suffixIcon: Icon(Icons.search, size: 20),
                               ),
                               onChanged: controller.updateSearchQuery,
                             ),
                           ),
+
+                          // Listing Type Filter
+                          Obx(() {
+                            return _buildDropdownFilter(
+                              "Type: ${controller.selectedListingType.value}",
+                              controller.listingTypeOptions,
+                              controller.selectedListingType.value,
+                              controller.updateListingTypeFilter,
+                              width: isSmallScreen ? 180 : null,
+                            );
+                          }),
 
                           // Category Filter
                           Obx(() {
@@ -1135,16 +727,7 @@ class ManageListingsScreen extends StatelessWidget {
                             );
                           }),
 
-                          // Date Posted Filter
-                          Obx(() {
-                            return _buildDropdownFilter(
-                              "Date: ${controller.selectedDateFilter.value}",
-                              controller.dateFilters,
-                              controller.selectedDateFilter.value,
-                              controller.updateDateFilter,
-                              width: isSmallScreen ? 180 : null,
-                            );
-                          }),
+                          // Status Filter
                           Obx(() {
                             return _buildDropdownFilter(
                               "Status: ${controller.selectedStatus.value}",
@@ -1154,19 +737,56 @@ class ManageListingsScreen extends StatelessWidget {
                               width: isSmallScreen ? 180 : null,
                             );
                           }),
+
+                          // Date Filter
                           Obx(() {
                             return _buildDropdownFilter(
-                              "Payment: ${controller.selectedPaymentStatus.value}",
-                              controller.paymentStatusOptions,
-                              controller.selectedPaymentStatus.value,
-                              controller.updatePaymentStatusFilter,
+                              "Date: ${controller.selectedDateFilter.value}",
+                              controller.dateFilters,
+                              controller.selectedDateFilter.value,
+                              controller.updateDateFilter,
                               width: isSmallScreen ? 180 : null,
                             );
                           }),
 
-                          // Status Filter
+                          // Sort By
+                          Obx(() {
+                            return _buildDropdownFilter(
+                              "Sort: ${controller.sortBy.value}",
+                              controller.sortOptions,
+                              controller.sortBy.value,
+                              controller.updateSorting,
+                              width: isSmallScreen ? 150 : null,
+                            );
+                          }),
 
-                          // Payment Status Filter
+                          // Sort Order
+                          Obx(() {
+                            return Container(
+                              height: 40,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  controller.updateSortOrder(
+                                    controller.sortOrder.value == 'DESC'
+                                        ? 'ASC'
+                                        : 'DESC',
+                                  );
+                                },
+                                icon: Icon(
+                                  controller.sortOrder.value == 'DESC'
+                                      ? Icons.arrow_downward
+                                      : Icons.arrow_upward,
+                                  size: 16,
+                                ),
+                                label: Text(controller.sortOrder.value),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Color(0xFFE5E5E5),
+                                  foregroundColor: Colors.black87,
+                                  elevation: 0,
+                                ),
+                              ),
+                            );
+                          }),
                         ],
                       );
                     },
@@ -1183,6 +803,37 @@ class ManageListingsScreen extends StatelessWidget {
                       return _buildShimmerLoading();
                     }
 
+                    if (controller.filteredListings.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.inbox,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'No listings found',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Try adjusting your filters',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
                     return Padding(
                       padding: const EdgeInsets.only(left: 20, right: 20),
                       child: Column(
@@ -1194,7 +845,7 @@ class ManageListingsScreen extends StatelessWidget {
                               child: SizedBox(
                                 width:
                                     MediaQuery.of(context).size.width < 1000
-                                        ? 1800
+                                        ? 1600
                                         : MediaQuery.of(context).size.width -
                                             32,
                                 child: Column(
@@ -1210,7 +861,7 @@ class ManageListingsScreen extends StatelessWidget {
                                       ),
                                       child: Row(
                                         children: [
-                                          // Checkbox column - Fixed width
+                                          // Checkbox column
                                           SizedBox(
                                             width: 50,
                                             child: Obx(
@@ -1236,7 +887,7 @@ class ManageListingsScreen extends StatelessWidget {
                                               ),
                                             ),
                                           ),
-                                          // Title column - Wider
+                                          // Title column
                                           SizedBox(
                                             width: 300,
                                             child: Padding(
@@ -1251,13 +902,13 @@ class ManageListingsScreen extends StatelessWidget {
                                               ),
                                             ),
                                           ),
-                                          // Seller column
+                                          // Type column
                                           SizedBox(
-                                            width: 200,
+                                            width: 150,
                                             child: Padding(
                                               padding: EdgeInsets.only(left: 8),
                                               child: Text(
-                                                "Seller",
+                                                "Type",
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w600,
@@ -1266,13 +917,13 @@ class ManageListingsScreen extends StatelessWidget {
                                               ),
                                             ),
                                           ),
-                                          // Category column
+                                          // Author column
                                           SizedBox(
-                                            width: 250,
+                                            width: 200,
                                             child: Padding(
                                               padding: EdgeInsets.only(left: 8),
                                               child: Text(
-                                                "Category",
+                                                "Author",
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w600,
@@ -1283,7 +934,7 @@ class ManageListingsScreen extends StatelessWidget {
                                           ),
                                           // Status column
                                           SizedBox(
-                                            width: 250,
+                                            width: 150,
                                             child: Padding(
                                               padding: EdgeInsets.only(left: 8),
                                               child: Text(
@@ -1296,13 +947,13 @@ class ManageListingsScreen extends StatelessWidget {
                                               ),
                                             ),
                                           ),
-                                          // Payment Status column
+                                          // Date column
                                           SizedBox(
-                                            width: 350,
+                                            width: 200,
                                             child: Padding(
                                               padding: EdgeInsets.only(left: 8),
                                               child: Text(
-                                                "Payment",
+                                                "Date",
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w600,
@@ -1317,7 +968,7 @@ class ManageListingsScreen extends StatelessWidget {
                                             child: Padding(
                                               padding: EdgeInsets.only(left: 8),
                                               child: Text(
-                                                "Action",
+                                                "Actions",
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w600,
@@ -1352,7 +1003,9 @@ class ManageListingsScreen extends StatelessWidget {
                                                     .filteredListings[index];
                                             final isSelected = controller
                                                 .selectedListings
-                                                .contains(listing.id);
+                                                .contains(
+                                                  listing.id.toString(),
+                                                );
                                             final isEven = index % 2 == 0;
 
                                             return _buildTableRow(
@@ -1403,45 +1056,38 @@ class ManageListingsScreen extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 _buildActionButton(
-                                  "Approve",
+                                  "Publish",
                                   Color(0xFFF2B342),
-                                  () => controller.activateListings(
+                                  () => controller.bulkUpdateStatus(
                                     List.from(controller.selectedListings),
+                                    'publish',
                                   ),
                                 ),
                                 SizedBox(width: 8),
                                 _buildActionButton(
-                                  "Remove",
-                                  Color(0xFFF2B342),
-                                  () => _showDeleteDialog(controller, context),
+                                  "Draft",
+                                  Colors.grey,
+                                  () => controller.bulkUpdateStatus(
+                                    List.from(controller.selectedListings),
+                                    'draft',
+                                  ),
                                 ),
                                 SizedBox(width: 8),
-                                // Payment status button
                                 _buildActionButton(
-                                  "Update Payment",
-                                  Color(0xFFF2B342),
-                                  () => _showUpdatePaymentDialog(
+                                  "Delete",
+                                  Colors.red,
+                                  () => _showBulkDeleteDialog(
                                     controller,
                                     context,
                                   ),
                                 ),
-                                SizedBox(width: 8),
-                                // Only show Category button if all selected items are same type
-                                if (controller.canUpdateCategory)
-                                  _buildActionButton(
-                                    "Category",
-                                    Color(0xFFF2B342),
-                                    () => _showChangeCategoryDialog(
-                                      controller,
-                                      context,
-                                    ),
-                                  ),
                               ],
                             ),
                           )
                           : SizedBox.shrink(),
                 ),
 
+                // Pagination
                 Container(
                   padding: EdgeInsets.all(16),
                   child: _buildPagination(controller, context),
@@ -1467,29 +1113,6 @@ class ManageListingsScreen extends StatelessWidget {
               color: Colors.grey[200],
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 20,
-                  margin: EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    height: 20,
-                    margin: EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -1514,7 +1137,7 @@ class ManageListingsScreen extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          dropdownColor: Color(0xFFF2B342),
+          dropdownColor: Colors.white,
           value: selected,
           hint: Text(
             title,
@@ -1537,152 +1160,173 @@ class ManageListingsScreen extends StatelessWidget {
   }
 
   Widget _buildTableRow(
-    AdminListingWrapper listing,
+    UnifiedListing listing,
     bool isSelected,
     bool isEven,
     AdminListingsController controller,
     BuildContext context,
   ) {
-    final hasPendingPayment = listing.paymentStatus?.toLowerCase() == 'pending';
+    return Obx(() {
+      // Re-check selection state inside Obx for reactivity
+      final currentlySelected = controller.selectedListings.contains(
+        listing.id.toString(),
+      );
 
-    return Container(
-      height: 50,
-      decoration: BoxDecoration(
-        color: isEven ? Colors.white : Color(0xFFF5F5F5),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE0E0E0), width: 0.5),
+      return Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: isEven ? Colors.white : Color(0xFFF5F5F5),
+          border: Border(
+            bottom: BorderSide(color: Color(0xFFE0E0E0), width: 0.5),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          // Checkbox
-          SizedBox(
-            width: 50,
-            child: Checkbox(
-              value: isSelected,
-              onChanged: (_) => controller.toggleSelection(listing.id!),
-              fillColor: WidgetStateProperty.all(
-                isSelected ? Color(0xFFF2B342) : Colors.white,
-              ),
-              checkColor: Colors.white,
-            ),
-          ),
-          // Title
-          SizedBox(
-            width: 300,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                listing.name ?? 'Unnamed ${listing.type}',
-                style: TextStyle(fontSize: 14),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-          // Seller
-          UserNameWidget(userId: listing.userId ?? ''),
-          // Category
-          SizedBox(
-            width: 250,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text(listing.type, style: TextStyle(fontSize: 14)),
-            ),
-          ),
-          // Status
-          SizedBox(
-            width: 250,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                listing.status,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: _getStatusColor(listing.status),
-                  fontWeight: FontWeight.w500,
+        child: Row(
+          children: [
+            // Checkbox
+            SizedBox(
+              width: 50,
+              child: Checkbox(
+                value: currentlySelected,
+                onChanged: (_) {
+                  controller.toggleSelection(listing.id.toString());
+                },
+                fillColor: WidgetStateProperty.all(
+                  currentlySelected ? Color(0xFFF2B342) : Colors.white,
                 ),
+                checkColor: Colors.white,
               ),
             ),
-          ),
-          // Payment Status
-          SizedBox(
-            width: 250,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: listing.paymentStatusColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: listing.paymentStatusColor),
-                ),
+            // Title
+            SizedBox(
+              width: 300,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Text(
-                  listing.paymentStatus?.toUpperCase() ?? 'PENDING',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: listing.paymentStatusColor,
-                    fontWeight: FontWeight.w500,
+                  listing.title ?? 'Unnamed Listing',
+                  style: TextStyle(fontSize: 14),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            // Type
+            SizedBox(
+              width: 150,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  listing.listingType,
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+            // Author
+            SizedBox(
+              width: 200,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'ID: ${listing.author ?? 'N/A'}',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+            // Status
+            SizedBox(
+              width: 150,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(
+                      listing.status ?? 'draft',
+                    ).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: _getStatusColor(listing.status ?? 'draft'),
+                    ),
+                  ),
+                  child: Text(
+                    (listing.status ?? 'draft').toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _getStatusColor(listing.status ?? 'draft'),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          // Actions
-          SizedBox(
-            width: 250,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (!hasPendingPayment)
-                  InkWell(
-                    onTap: () => _showEditDialog(listing, controller, context),
-                    child: Container(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.edit,
-                        size: 18,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                if (!hasPendingPayment) SizedBox(width: 8),
-                InkWell(
-                  onTap:
-                      () =>
-                          _showSingleDeleteDialog(listing, controller, context),
-                  child: Container(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.delete,
-                      size: 18,
-                      color: Colors.grey[600],
-                    ),
-                  ),
+            // Date
+            SizedBox(
+              width: 200,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  _formatDate(listing.date),
+                  style: TextStyle(fontSize: 14),
                 ),
-                if (hasPendingPayment)
-                  InkWell(
-                    onTap:
-                        () => _showUpdatePaymentDialogForSingle(
-                          listing,
-                          controller,
-                          context,
-                        ),
-                    child: Container(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.payment,
-                        size: 18,
-                        color: Colors.orange,
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+            // Actions
+            SizedBox(
+              width: 250,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.view_list, size: 18, color: Colors.blue),
+                    onPressed: () {
+                      Get.dialog(
+                        Center(
+                          child: Container(
+                            width: 500,
+
+                            child: UnifiedDetailScreen(listing: listing),
+                          ),
+                        ),
+                      );
+                    },
+                    tooltip: 'Edit',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.edit, size: 18, color: Colors.blue),
+                    onPressed:
+                        () => _showEditDialog(listing, controller, context),
+                    tooltip: 'Edit',
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      listing.status == 'publish'
+                          ? Icons.unpublished
+                          : Icons.publish,
+                      size: 18,
+                      color: Color(0xFFF2B342),
+                    ),
+                    onPressed:
+                        () => controller.updateListingStatus(
+                          listing.id!,
+                          listing.status == 'publish' ? 'draft' : 'publish',
+                        ),
+                    tooltip:
+                        listing.status == 'publish'
+                            ? 'Set to Draft'
+                            : 'Publish',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.delete, size: 18, color: Colors.red),
+                    onPressed:
+                        () => _showDeleteDialog(listing, controller, context),
+                    tooltip: 'Delete',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildActionButton(String text, Color color, VoidCallback onPressed) {
@@ -1709,41 +1353,64 @@ class ManageListingsScreen extends StatelessWidget {
     BuildContext context,
   ) {
     return Obx(() {
-      if (controller.filteredListings.isEmpty) return SizedBox.shrink();
+      if (controller.totalPages.value <= 1) return SizedBox.shrink();
+
+      final currentPage = controller.currentPage.value;
+      final totalPages = controller.totalPages.value;
 
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // First page
+          if (currentPage > 1)
+            _buildPageButton("First", false, () => controller.goToPage(1)),
+
+          SizedBox(width: 8),
+
           // Previous button
-          if (controller.currentPage.value > 1)
-            _buildPageButton("Previous", false, () {
-              controller.currentPage.value--;
-              controller.loadListings();
-            }),
+          if (currentPage > 1)
+            _buildPageButton(
+              "Previous",
+              false,
+              () => controller.goToPage(currentPage - 1),
+            ),
 
           SizedBox(width: 8),
 
           // Page numbers
-          for (int i = 1; i <= controller.totalPages.clamp(1, 5); i++)
-            _buildPageButton(
-              i.toString(),
-              i == controller.currentPage.value,
-              () => controller.goToPage(i),
+          for (
+            int i = (currentPage - 2).clamp(1, totalPages);
+            i <= (currentPage + 2).clamp(1, totalPages);
+            i++
+          )
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: _buildPageButton(
+                i.toString(),
+                i == currentPage,
+                () => controller.goToPage(i),
+              ),
             ),
-
-          if (controller.totalPages > 5) ...[
-            SizedBox(width: 8),
-            Text(
-              "...",
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-          ],
 
           SizedBox(width: 8),
 
           // Next button
-          if (controller.hasMoreData.value)
-            _buildPageButton("Next", false, () => controller.loadMore()),
+          if (currentPage < totalPages)
+            _buildPageButton(
+              "Next",
+              false,
+              () => controller.goToPage(currentPage + 1),
+            ),
+
+          SizedBox(width: 8),
+
+          // Last page
+          if (currentPage < totalPages)
+            _buildPageButton(
+              "Last",
+              false,
+              () => controller.goToPage(totalPages),
+            ),
         ],
       );
     });
@@ -1756,15 +1423,16 @@ class ManageListingsScreen extends StatelessWidget {
         margin: EdgeInsets.symmetric(horizontal: 4),
         padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isActive ? Colors.grey[700] : Colors.white,
-          border: Border.all(color: Colors.grey[400]!),
+          color: isActive ? Color(0xFF364C63) : Colors.white,
+          border: Border.all(color: Color(0xFF364C63)),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
           text,
           style: TextStyle(
-            color: isActive ? Colors.white : Colors.black87,
+            color: isActive ? Colors.white : Color(0xFF364C63),
             fontSize: 14,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
       ),
@@ -1773,398 +1441,142 @@ class ManageListingsScreen extends StatelessWidget {
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'accepted':
+      case 'publish':
         return Colors.green;
+      case 'draft':
+        return Colors.orange;
       case 'pending':
         return Color(0xFFF2B342);
-      case 'rejected':
-        return Colors.red;
-      case 'banned':
-        return Colors.red[900]!;
+      case 'private':
+        return Colors.blue;
       default:
         return Colors.grey;
     }
   }
 
-  // Updated dialogs with proper status handling
-  void _showDeleteDialog(
+  String _formatDate(String? dateString) {
+    if (dateString == null) return 'N/A';
+    try {
+      final date = DateTime.parse(dateString);
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return 'N/A';
+    }
+  }
+
+  void _showEditDialog(
+    UnifiedListing listing,
     AdminListingsController controller,
     BuildContext context,
   ) {
+    final titleController = TextEditingController(text: listing.title);
+    final contentController = TextEditingController(text: listing.cleanContent);
+    final priceController = TextEditingController(text: listing.price);
+    final emailController = TextEditingController(text: listing.email);
+    final phoneController = TextEditingController(text: listing.phone);
+    final addressController = TextEditingController(text: listing.address);
+
     Get.dialog(
       AlertDialog(
-        title: Text("Remove Listings"),
-        content: Text(
-          "Are you sure you want to remove ${controller.selectedListings.length} listing(s)?",
+        title: Text("Edit Listing"),
+        content: SingleChildScrollView(
+          child: Container(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: InputDecoration(
+                    labelText: "Title",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 12),
+                TextField(
+                  controller: contentController,
+                  decoration: InputDecoration(
+                    labelText: "Description",
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+                SizedBox(height: 12),
+                TextField(
+                  controller: priceController,
+                  decoration: InputDecoration(
+                    labelText: "Price",
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                SizedBox(height: 12),
+                TextField(
+                  controller: emailController,
+                  decoration: InputDecoration(
+                    labelText: "Email",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 12),
+                TextField(
+                  controller: phoneController,
+                  decoration: InputDecoration(
+                    labelText: "Phone",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 12),
+                TextField(
+                  controller: addressController,
+                  decoration: InputDecoration(
+                    labelText: "Address",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Get.back(), child: Text("Cancel")),
           ElevatedButton(
             onPressed: () {
-              controller.deleteListings(List.from(controller.selectedListings));
+              final body = {
+                'title': titleController.text.trim(),
+                'content': contentController.text.trim(),
+                'meta': {
+                  '_price': priceController.text.trim(),
+                  '_email': emailController.text.trim(),
+                  '_phone': phoneController.text.trim(),
+                  '_address': addressController.text.trim(),
+                },
+              };
+              controller.updateListing(listing.id!, body);
               Get.back();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text("Remove", style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: Color(0xFFF2B342)),
+            child: Text("Update", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  void _showChangeCategoryDialog(
-    AdminListingsController controller,
-    BuildContext context,
-  ) {
-    final availableCategories = controller.getCategoriesForSelectedType();
-    List<String> selectedCategories = [];
-
-    Get.dialog(
-      StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Text("Change Categories"),
-            content: SizedBox(
-              width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    "Update categories for ${controller.selectedListings.length} listing(s)",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    "Select categories:",
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  SizedBox(height: 8),
-                  Container(
-                    height: 300,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: ListView.builder(
-                      itemCount: availableCategories.length,
-                      itemBuilder: (context, index) {
-                        final category = availableCategories[index];
-                        final isSelected = selectedCategories.contains(
-                          category,
-                        );
-
-                        return CheckboxListTile(
-                          title: Text(category),
-                          value: isSelected,
-                          onChanged: (bool? value) {
-                            setState(() {
-                              if (value == true) {
-                                selectedCategories.add(category);
-                              } else {
-                                selectedCategories.remove(category);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Get.back(), child: Text("Cancel")),
-              ElevatedButton(
-                onPressed:
-                    selectedCategories.isNotEmpty
-                        ? () {
-                          controller.updateListingCategories(
-                            List.from(controller.selectedListings),
-                            selectedCategories,
-                          );
-                          Get.back();
-                        }
-                        : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFFF2B342),
-                ),
-                child: Text("Update", style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _showUpdatePaymentDialog(
-    AdminListingsController controller,
-    BuildContext context,
-  ) {
-    String selectedStatus = 'paid';
-
-    Get.dialog(
-      StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Text("Update Payment Status"),
-            content: SizedBox(
-              width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    "Update payment status for ${controller.selectedListings.length} listing(s)",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  SizedBox(height: 16),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Color(0xFFE5E5E5),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Color(0xFFD0D0D0)),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: selectedStatus,
-                        items:
-                            ['paid', 'pending', 'failed'].map((status) {
-                              return DropdownMenuItem<String>(
-                                value: status,
-                                child: Text(status.toUpperCase()),
-                              );
-                            }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              selectedStatus = value;
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Get.back(), child: Text("Cancel")),
-              ElevatedButton(
-                onPressed: () {
-                  controller.updatePaymentStatus(
-                    List.from(controller.selectedListings),
-                    selectedStatus,
-                  );
-                  Get.back();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFFF2B342),
-                ),
-                child: Text("Update", style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _showUpdatePaymentDialogForSingle(
-    AdminListingWrapper listing,
-    AdminListingsController controller,
-    BuildContext context,
-  ) {
-    String selectedStatus = listing.paymentStatus ?? 'pending';
-
-    Get.dialog(
-      StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Text("Update Payment Status"),
-            content: SizedBox(
-              width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    "Update payment status for ${listing.name}",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  SizedBox(height: 16),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Color(0xFFE5E5E5),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Color(0xFFD0D0D0)),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: selectedStatus,
-                        items:
-                            ['paid', 'pending', 'failed'].map((status) {
-                              return DropdownMenuItem<String>(
-                                value: status,
-                                child: Text(status.toUpperCase()),
-                              );
-                            }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              selectedStatus = value;
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Get.back(), child: Text("Cancel")),
-              ElevatedButton(
-                onPressed: () {
-                  controller.updatePaymentStatus([listing.id!], selectedStatus);
-                  Get.back();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFFF2B342),
-                ),
-                child: Text("Update", style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _showEditDialog(
-    AdminListingWrapper listing,
-    AdminListingsController controller,
-    BuildContext context,
-  ) {
-    bool isActive = listing.isActive ?? false;
-    bool isBanned = listing.isBanned ?? false;
-    bool isRejected = listing.isRejected ?? false;
-    String rejectionReason = listing.rejectionReason ?? '';
-
-    Get.dialog(
-      StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Text("Edit Listing Status"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Edit status for: ${listing.name}"),
-                SizedBox(height: 16),
-
-                CheckboxListTile(
-                  title: Text("Active"),
-                  subtitle: Text("Listing is visible and active"),
-                  value: isActive,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      isActive = value ?? false;
-                      if (isActive) {
-                        isBanned = false;
-                        isRejected = false;
-                      }
-                    });
-                  },
-                ),
-
-                CheckboxListTile(
-                  title: Text("Banned"),
-                  subtitle: Text("Listing is banned from platform"),
-                  value: isBanned,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      isBanned = value ?? false;
-                      if (isBanned) {
-                        isActive = false;
-                        isRejected = false;
-                      }
-                    });
-                  },
-                ),
-
-                CheckboxListTile(
-                  title: Text("Rejected"),
-                  subtitle: Text("Listing is rejected"),
-                  value: isRejected,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      isRejected = value ?? false;
-                      if (isRejected) {
-                        isActive = false;
-                        isBanned = false;
-                      }
-                    });
-                  },
-                ),
-
-                if (isBanned || isRejected) ...[
-                  SizedBox(height: 16),
-                  TextField(
-                    decoration: InputDecoration(
-                      labelText: "Reason",
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (value) => rejectionReason = value,
-                    controller: TextEditingController(text: rejectionReason),
-                  ),
-                ],
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Get.back(), child: Text("Cancel")),
-              ElevatedButton(
-                onPressed: () {
-                  final updates = <String, dynamic>{
-                    'status': isActive ? 'publish' : 'draft',
-                    'meta': {
-                      '_listing_status':
-                          isActive
-                              ? 'active'
-                              : (isBanned
-                                  ? 'banned'
-                                  : (isRejected ? 'rejected' : 'inactive')),
-                      if (isBanned || isRejected)
-                        '_rejection_reason': rejectionReason,
-                    },
-                  };
-
-                  controller._updateListingsStatus([listing.id!], updates);
-                  Get.back();
-                },
-                child: Text("Update"),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _showSingleDeleteDialog(
-    AdminListingWrapper listing,
+  void _showDeleteDialog(
+    UnifiedListing listing,
     AdminListingsController controller,
     BuildContext context,
   ) {
     Get.dialog(
       AlertDialog(
         title: Text("Delete Listing"),
-        content: Text("Are you sure you want to delete '${listing.name}'?"),
+        content: Text("Are you sure you want to delete '${listing.title}'?"),
         actions: [
           TextButton(onPressed: () => Get.back(), child: Text("Cancel")),
           ElevatedButton(
             onPressed: () {
-              controller.deleteListings([listing.id!]);
+              controller.deleteListing(listing.id!);
               Get.back();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -2174,72 +1586,28 @@ class ManageListingsScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-class UserNameWidget extends StatelessWidget {
-  final String userId;
-
-  const UserNameWidget({super.key, required this.userId});
-
-  Future<String> _getUserName(String userId) async {
-    if (userId.isEmpty) return "Unknown";
-
-    try {
-      final authService = Get.find<AuthService>();
-      final token = authService.currentToken;
-
-      if (token == null) return "Unknown";
-
-      final uri = Uri.parse(
-        'https://dedicatedcowboy.com/wp-json/wp/v2/users/$userId',
-      );
-
-      final response = await ApiClient.makeRequest(
-        uri: uri,
-        method: 'GET',
-        token: token,
-      );
-
-      if (response.success && response.data != null) {
-        final userData = response.data as Map<String, dynamic>;
-        return userData['name'] ?? userData['display_name'] ?? "Unknown";
-      }
-    } catch (e) {
-      print('Error fetching user name: $e');
-    }
-
-    return "Unknown";
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 200,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: FutureBuilder<String>(
-          future: _getUserName(userId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Text(
-                "Loading...",
-                style: TextStyle(fontSize: 14, color: Colors.grey),
-              );
-            }
-            if (snapshot.hasError) {
-              return const Text(
-                "Error",
-                style: TextStyle(fontSize: 14, color: Colors.red),
-              );
-            }
-            return Text(
-              snapshot.data ?? "Unknown",
-              style: const TextStyle(fontSize: 14),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            );
-          },
+  void _showBulkDeleteDialog(
+    AdminListingsController controller,
+    BuildContext context,
+  ) {
+    Get.dialog(
+      AlertDialog(
+        title: Text("Delete Listings"),
+        content: Text(
+          "Are you sure you want to delete ${controller.selectedListings.length} listing(s)?",
         ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              controller.deleteListings(List.from(controller.selectedListings));
+              Get.back();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text("Delete", style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

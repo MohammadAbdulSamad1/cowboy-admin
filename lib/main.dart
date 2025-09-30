@@ -309,11 +309,10 @@ class ResponsiveAdminDashboard extends StatelessWidget {
 
     return Scaffold(
       key: navController.scaffoldKey,
-      appBar: _buildMobileAppBar(navController),
+      // appBar: _buildMobileAppBar(navController),
       drawer: isMobile ? const ResponsiveDrawer() : null,
       body: Row(
         children: [
-          // Show sidebar only on tablet and desktop
           if (!isMobile) const ResponsiveSidebar(),
           Expanded(
             child: Container(
@@ -380,8 +379,6 @@ class ResponsiveSidebar extends ConsumerWidget {
 
     return authState.when(
       data: (user) {
-        if (user == null) return const SizedBox.shrink();
-
         return Obx(
           () => AnimatedContainer(
             duration: const Duration(milliseconds: 300),
@@ -774,16 +771,16 @@ class MenuItems {
       route: '/products',
       icon: Icons.inventory,
     ),
-    MenuItem(
-      title: 'Admins',
-      route: '/adminsmanage',
-      icon: Icons.admin_panel_settings,
-    ),
-    MenuItem(
-      title: 'Subscriptions',
-      route: '/subscriptions',
-      icon: Icons.subscriptions,
-    ),
+    // MenuItem(
+    //   title: 'Admins',
+    //   route: '/adminsmanage',
+    //   icon: Icons.admin_panel_settings,
+    // ),
+    // MenuItem(
+    //   title: 'Subscriptions',
+    //   route: '/subscriptions',
+    //   icon: Icons.subscriptions,
+    // ),
   ];
 
   static int getIndexForRoute(String route) {

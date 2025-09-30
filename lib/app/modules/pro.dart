@@ -1,387 +1,9 @@
+import 'package:dedicated_cow_boy_admin/app/profile/controllers/profile_controller.dart';
+import 'package:dedicated_cow_boy_admin/app/profile/views/edit.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-class ProfileController extends GetxController {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  // Loading states
-  final RxBool isLoading = false.obs;
-  final RxBool isUpdatingProfile = false.obs;
-  final RxBool isUpdatingPassword = false.obs;
-
-  // Form controllers
-  final firstNameController = TextEditingController();
-  final lastNameController = TextEditingController();
-  final userNameController = TextEditingController();
-  final mobileController = TextEditingController();
-  final emailController = TextEditingController();
-
-  // Password controllers
-  final oldPasswordController = TextEditingController();
-  final newPasswordController = TextEditingController();
-  final confirmPasswordController = TextEditingController();
-
-  // Password visibility
-  final RxBool obscureOldPassword = true.obs;
-  final RxBool obscureNewPassword = true.obs;
-  final RxBool obscureConfirmPassword = true.obs;
-
-  // User data
-  final Rx<Map<String, dynamic>> adminData = Rx<Map<String, dynamic>>({});
-  final RxString profileImageUrl = ''.obs;
-  final RxString userInitials = ''.obs;
-
-  @override
-  void onInit() {
-    super.onInit();
-    loadAdminData();
-  }
-
-  // Load admin data from Firestore
-  Future<void> loadAdminData() async {
-    try {
-      isLoading.value = true;
-      final User? currentUser = _auth.currentUser;
-
-      if (currentUser != null) {
-        // Get admin data from Firestore
-        final DocumentSnapshot adminDoc =
-            await _firestore.collection('admins').doc(currentUser.uid).get();
-
-        if (adminDoc.exists) {
-          final data = adminDoc.data() as Map<String, dynamic>;
-          adminData.value = data;
-
-          // Populate form controllers
-          firstNameController.text = data['firstName'] ?? '';
-          lastNameController.text = data['lastName'] ?? '';
-          userNameController.text = data['userName'] ?? '';
-          mobileController.text = data['phone'] ?? '';
-          emailController.text = data['email'] ?? currentUser.email ?? '';
-
-          // Set profile image and initials
-          profileImageUrl.value = data['photoURL'] ?? data['avatar'] ?? '';
-          _updateUserInitials();
-        } else {
-          // Create admin document if it doesn't exist
-          await _createAdminDocument(currentUser);
-        }
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to load profile data: ${e.toString()}',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  // Create admin document if it doesn't exist
-  Future<void> _createAdminDocument(User user) async {
-    try {
-      final adminData = {
-        'uid': user.uid,
-        'email': user.email,
-        'firstName': '',
-        'lastName': '',
-        'userName': '',
-        'phone': '',
-        'photoURL': user.photoURL ?? '',
-        'avatar': '',
-        'role': 'admin',
-        'isActive': true,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      await _firestore.collection('admins').doc(user.uid).set(adminData);
-
-      // Reload data
-      await loadAdminData();
-    } catch (e) {
-      print('Error creating admin document: $e');
-    }
-  }
-
-  // Update user initials
-  void _updateUserInitials() {
-    final firstName = firstNameController.text.trim();
-    final lastName = lastNameController.text.trim();
-
-    if (firstName.isNotEmpty && lastName.isNotEmpty) {
-      userInitials.value = '${firstName[0]}${lastName[0]}'.toUpperCase();
-    } else if (firstName.isNotEmpty) {
-      userInitials.value = firstName[0].toUpperCase();
-    } else if (lastName.isNotEmpty) {
-      userInitials.value = lastName[0].toUpperCase();
-    } else {
-      final email = emailController.text.trim();
-      if (email.isNotEmpty) {
-        userInitials.value = email[0].toUpperCase();
-      } else {
-        userInitials.value = 'A';
-      }
-    }
-  }
-
-  // Update profile
-  Future<void> updateProfile() async {
-    try {
-      isUpdatingProfile.value = true;
-      final User? currentUser = _auth.currentUser;
-
-      if (currentUser == null) {
-        Get.snackbar(
-          'Error',
-          'No user found',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Color(0xFFF2B342),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
-
-      // Validate required fields
-      if (firstNameController.text.trim().isEmpty) {
-        Get.snackbar(
-          'Error',
-          'First name is required',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Color(0xFFF2B342),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
-
-      if (emailController.text.trim().isEmpty) {
-        Get.snackbar(
-          'Error',
-          'Email is required',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Color(0xFFF2B342),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
-
-      // Update user initials
-      _updateUserInitials();
-
-      // Prepare update data
-      final updateData = {
-        'firstName': firstNameController.text.trim(),
-        'lastName': lastNameController.text.trim(),
-        'userName': userNameController.text.trim(),
-        'phone': mobileController.text.trim(),
-        'email': emailController.text.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      // Update Firestore document
-      await _firestore
-          .collection('admins')
-          .doc(currentUser.uid)
-          .update(updateData);
-
-      // Update local data
-      adminData.value = {...adminData.value, ...updateData};
-
-      Get.snackbar(
-        'Success',
-        'Profile updated successfully!',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
-    } catch (e) {
-      String errorMessage = 'Failed to update profile';
-
-      if (e is FirebaseAuthException) {
-        switch (e.code) {
-          case 'requires-recent-login':
-            errorMessage = 'Please re-authenticate to update email';
-            break;
-          case 'email-already-in-use':
-            errorMessage = 'Email is already in use by another account';
-            break;
-          case 'invalid-email':
-            errorMessage = 'Invalid email address';
-            break;
-        }
-      }
-
-      Get.snackbar(
-        'Error',
-        '$errorMessage: ${e.toString()}',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
-    } finally {
-      isUpdatingProfile.value = false;
-    }
-  }
-
-  // Update password
-  Future<void> updatePassword() async {
-    try {
-      isUpdatingPassword.value = true;
-      final User? currentUser = _auth.currentUser;
-
-      if (currentUser == null) {
-        Get.snackbar(
-          'Error',
-          'No user found',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Color(0xFFF2B342),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
-
-      // Validate inputs
-      if (oldPasswordController.text.isEmpty ||
-          newPasswordController.text.isEmpty ||
-          confirmPasswordController.text.isEmpty) {
-        Get.snackbar(
-          'Error',
-          'All password fields are required',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Color(0xFFF2B342),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
-
-      if (newPasswordController.text != confirmPasswordController.text) {
-        Get.snackbar(
-          'Error',
-          'New passwords do not match',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Color(0xFFF2B342),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
-
-      if (newPasswordController.text.length < 6) {
-        Get.snackbar(
-          'Error',
-          'Password must be at least 6 characters long',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Color(0xFFF2B342),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
-
-      // Re-authenticate user with old password
-      final credential = EmailAuthProvider.credential(
-        email: currentUser.email!,
-        password: oldPasswordController.text,
-      );
-
-      await currentUser.reauthenticateWithCredential(credential);
-
-      // Update password
-      await currentUser.updatePassword(newPasswordController.text);
-
-      // Log password change activity
-      await _firestore.collection('admin_logs').add({
-        'adminId': currentUser.uid,
-        'email': currentUser.email,
-        'action': 'password_changed',
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-
-      // Clear password fields
-      oldPasswordController.clear();
-      newPasswordController.clear();
-      confirmPasswordController.clear();
-
-      Get.snackbar(
-        'Success',
-        'Password updated successfully!',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
-    } catch (e) {
-      String errorMessage = 'Failed to update password';
-
-      if (e is FirebaseAuthException) {
-        switch (e.code) {
-          case 'wrong-password':
-            errorMessage = 'Current password is incorrect';
-            break;
-          case 'weak-password':
-            errorMessage = 'New password is too weak';
-            break;
-          case 'requires-recent-login':
-            errorMessage = 'Please re-login and try again';
-            break;
-        }
-      }
-
-      Get.snackbar(
-        'Error',
-        '$errorMessage: ${e.toString()}',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFF2B342),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
-    } finally {
-      isUpdatingPassword.value = false;
-    }
-  }
-
-  // Get full name
-  String get fullName {
-    final firstName = firstNameController.text.trim();
-    final lastName = lastNameController.text.trim();
-
-    if (firstName.isNotEmpty && lastName.isNotEmpty) {
-      return '$firstName $lastName';
-    } else if (firstName.isNotEmpty) {
-      return firstName;
-    } else if (lastName.isNotEmpty) {
-      return lastName;
-    }
-    return 'Admin User';
-  }
-
-  @override
-  void onClose() {
-    firstNameController.dispose();
-    lastNameController.dispose();
-    userNameController.dispose();
-    mobileController.dispose();
-    emailController.dispose();
-    oldPasswordController.dispose();
-    newPasswordController.dispose();
-    confirmPasswordController.dispose();
-    super.onClose();
-  }
-}
 
 class ProfileDialog extends StatefulWidget {
   @override
@@ -472,19 +94,12 @@ class _ProfileDialogState extends State<ProfileDialog> {
   Widget _buildContent() {
     return Container(
       padding: EdgeInsets.all(20),
-      child: Obx(() {
-        if (controller.isLoading.value) {
-          return Center(
-            child: CircularProgressIndicator(color: Color(0xFFF2B342)),
-          );
-        }
-
-        return _currentView == 'profile'
-            ? _buildProfileView()
-            : _currentView == 'edit'
-            ? _buildEditView()
-            : _buildPasswordView();
-      }),
+      child:
+          _currentView == 'profile'
+              ? _buildProfileView()
+              : _currentView == 'edit'
+              ? _buildEditView()
+              : _buildPasswordView(),
     );
   }
 
@@ -515,31 +130,18 @@ class _ProfileDialogState extends State<ProfileDialog> {
                       ),
                     ],
                   ),
-                  child: Obx(
-                    () => CircleAvatar(
-                      radius: 47,
-                      backgroundColor: Color(0xFF6C757D),
-                      backgroundImage:
-                          controller.profileImageUrl.value.isNotEmpty
-                              ? NetworkImage(controller.profileImageUrl.value)
-                              : null,
-                      child:
-                          controller.profileImageUrl.value.isEmpty
-                              ? Text(
-                                controller.userInitials.value,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              )
-                              : null,
+                  child: CircleAvatar(
+                    radius: 47,
+                    backgroundColor: Color(0xFF6C757D),
+                    backgroundImage: NetworkImage(
+                      controller.currentUser.value?.photoURL ?? '',
                     ),
+                    child: null,
                   ),
                 ),
                 SizedBox(height: 15),
                 Text(
-                  controller.fullName,
+                  controller.currentUser.value?.displayName ?? '',
                   style: TextStyle(
                     fontSize: 20,
                     color: Color(0xFF495057),
@@ -549,7 +151,7 @@ class _ProfileDialogState extends State<ProfileDialog> {
                 ),
                 SizedBox(height: 5),
                 Text(
-                  controller.emailController.text,
+                  controller.currentUser.value?.email ?? '',
                   style: TextStyle(fontSize: 14, color: Color(0xFF6C757D)),
                   textAlign: TextAlign.center,
                 ),
@@ -616,48 +218,7 @@ class _ProfileDialogState extends State<ProfileDialog> {
   }
 
   Widget _buildEditView() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildInputField('First Name *', controller.firstNameController),
-          SizedBox(height: 16),
-          _buildInputField('Last Name', controller.lastNameController),
-          SizedBox(height: 16),
-          _buildInputField('User Name', controller.userNameController),
-          SizedBox(height: 16),
-          _buildInputField(
-            'Mobile Number',
-            controller.mobileController,
-            placeholder: 'Enter Mobile Number',
-          ),
-          SizedBox(height: 16),
-          _buildInputField('Email *', controller.emailController),
-          SizedBox(height: 24),
-          Obx(
-            () => _buildButton(
-              controller.isUpdatingProfile.value ? 'Updating...' : 'Update',
-              Color(0xFFF2B342),
-              Colors.white,
-              controller.isUpdatingProfile.value
-                  ? null
-                  : () async {
-                    await controller.updateProfile();
-                    setState(() => _currentView = 'profile');
-                  },
-            ),
-          ),
-          SizedBox(height: 12),
-          _buildButton(
-            'Cancel',
-            Colors.white,
-            Color(0xff364C63),
-            () => setState(() => _currentView = 'profile'),
-            hasBorder: true,
-          ),
-        ],
-      ),
-    );
+    return UserProfileEditScreen();
   }
 
   Widget _buildPasswordView() {

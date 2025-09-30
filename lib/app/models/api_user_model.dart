@@ -1,4 +1,46 @@
 // app/models/user_model.dart
+
+class ProfileImage {
+  final String? url;
+  final String? thumbnail;
+  final String? medium;
+  final String type;
+  final String? attachmentId;
+
+  ProfileImage({
+    this.url,
+    this.thumbnail,
+    this.medium,
+    required this.type,
+    this.attachmentId,
+  });
+
+  factory ProfileImage.fromJson(Map<String, dynamic> json) {
+    return ProfileImage(
+      url: json['url']?.toString(),
+      thumbnail: json['thumbnail']?.toString(),
+      medium: json['medium']?.toString(),
+      type: json['type']?.toString() ?? 'default',
+      attachmentId: json['attachment_id']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'url': url,
+      'thumbnail': thumbnail,
+      'medium': medium,
+      'type': type,
+      'attachment_id': attachmentId,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'ProfileImage(url: $url, type: $type)';
+  }
+}
+
 class ApiUserModel {
   final String id;
   final String username;
@@ -18,9 +60,12 @@ class ApiUserModel {
   final Map<String, dynamic> extraCapabilities;
   final Map<String, String> avatarUrls;
   final Map<String, dynamic>? meta;
+  final Map<String, dynamic>? subscriptionMeta;
   final List<dynamic> acf;
   final bool isSuperAdmin;
   final List<int>? favouriteListings;
+  final ProfileImage? profileImage;
+  final String? profile_image;
 
   ApiUserModel({
     required this.id,
@@ -44,6 +89,9 @@ class ApiUserModel {
     required this.acf,
     required this.isSuperAdmin,
     this.favouriteListings,
+    this.profileImage,
+    this.subscriptionMeta,
+    this.profile_image,
   });
 
   factory ApiUserModel.fromJson(Map<String, dynamic> json) {
@@ -52,7 +100,7 @@ class ApiUserModel {
     if (json['meta'] != null) {
       metaData = <String, dynamic>{};
       final rawMeta = json['meta'] as Map<String, dynamic>;
-      
+
       // Convert meta arrays to their first values (WordPress stores meta as arrays)
       rawMeta.forEach((key, value) {
         if (value is List && value.isNotEmpty) {
@@ -72,6 +120,14 @@ class ApiUserModel {
       }
     }
 
+    // // Extract profile image if present
+    // ProfileImage? profileImg;
+    // if (json['profile_image'] != null) {
+    //   profileImg = ProfileImage.fromJson(
+    //     json['profile_image'] as Map<String, dynamic>,
+    //   );
+    // }
+
     return ApiUserModel(
       id: json['id']?.toString() ?? '',
       username: json['username'] ?? '',
@@ -86,14 +142,18 @@ class ApiUserModel {
       nickname: json['nickname'] ?? '',
       slug: json['slug'] ?? '',
       roles: List<String>.from(json['roles'] ?? []),
-      registeredDate: DateTime.tryParse(json['registered_date'] ?? '') ?? DateTime.now(),
-      capabilities: Map<String, dynamic>.from(json['capabilities'] ?? {}),
-      extraCapabilities: Map<String, dynamic>.from(json['extra_capabilities'] ?? {}),
-      avatarUrls: Map<String, String>.from(json['avatar_urls'] ?? {}),
+      registeredDate:
+          DateTime.tryParse(json['registered_date'] ?? '') ?? DateTime.now(),
+      capabilities: Map<String, dynamic>.from({}),
+      extraCapabilities: Map<String, dynamic>.from({}),
+      avatarUrls: Map<String, String>.from({}),
       meta: metaData,
-      acf: List<dynamic>.from(json['acf'] ?? []),
+      acf: List<dynamic>.from([]),
       isSuperAdmin: json['is_super_admin'] ?? false,
       favouriteListings: parsedFavourites,
+      // profileImage: profileImg,
+      subscriptionMeta: json['subscription_meta'],
+      profile_image: json['profile_image'],
     );
   }
 
@@ -117,8 +177,11 @@ class ApiUserModel {
       'extra_capabilities': extraCapabilities,
       'avatar_urls': avatarUrls,
       'meta': meta,
+      'subscription_meta': subscriptionMeta,
       'acf': acf,
       'is_super_admin': isSuperAdmin,
+      'profile_image': profile_image,
+      // 'profile_image': profileImage?.toJson(),
     };
   }
 
@@ -128,7 +191,7 @@ class ApiUserModel {
       // Parse PHP serialized array: "a:2:{i:0;i:17538;i:1;i:17151;}"
       final regex = RegExp(r'i:\d+;i:(\d+);');
       final matches = regex.allMatches(serializedData);
-      
+
       return matches
           .map((match) => int.tryParse(match.group(1) ?? '') ?? 0)
           .where((id) => id > 0)
@@ -140,49 +203,91 @@ class ApiUserModel {
   }
 
   // Helper method to serialize favourites to PHP format
-   String serializeFavourites(List<int> favourites) {
+  String serializeFavourites(List<int> favourites) {
     if (favourites.isEmpty) return '';
-    
+
     final length = favourites.length;
     final buffer = StringBuffer();
     buffer.write('a:$length:{');
-    
+
     for (int i = 0; i < favourites.length; i++) {
       buffer.write('i:$i;i:${favourites[i]};');
     }
-    
+
     buffer.write('}');
     return buffer.toString();
   }
 
   // Getter for display name
   String get displayName => name.isNotEmpty ? name : username;
-  
-  // Getter for photo URL
-  String get photoURL => avatarUrls['96'] ?? avatarUrls['48'] ?? avatarUrls['24'] ?? '';
-  
+
+  // Updated getter for photo URL - prioritizes profile image over avatar URLs
+  String get photoURL {
+    // First check if there's a custom profile image
+    if (profileImage != null &&
+        profileImage!.url != null &&
+        profileImage!.url!.isNotEmpty) {
+      return profileImage!.url!;
+    }
+
+    // Fall back to avatar URLs
+    return avatarUrls['96'] ?? avatarUrls['48'] ?? avatarUrls['24'] ?? '';
+  }
+
+  // Get profile thumbnail URL
+  String get profileThumbnailURL {
+    if (profileImage != null &&
+        profileImage!.thumbnail != null &&
+        profileImage!.thumbnail!.isNotEmpty) {
+      return profileImage!.thumbnail!;
+    }
+
+    // Fall back to smaller avatar URLs
+    return avatarUrls['48'] ?? avatarUrls['24'] ?? '';
+  }
+
+  // Get profile medium URL
+  String get profileMediumURL {
+    if (profileImage != null &&
+        profileImage!.medium != null &&
+        profileImage!.medium!.isNotEmpty) {
+      return profileImage!.medium!;
+    }
+
+    // Fall back to avatar URLs
+    return avatarUrls['96'] ?? avatarUrls['48'] ?? '';
+  }
+
+  // Check if user has custom profile image
+  bool get hasCustomProfileImage {
+    return profileImage != null &&
+        profileImage!.type == 'custom' &&
+        profileImage!.url != null &&
+        profileImage!.url!.isNotEmpty;
+  }
+
   // Check if user has active subscription
   bool get isActiveSubscription {
     if (meta == null) return false;
-    
+
     // Check for Stripe customer key (indicates paid subscription)
     final stripeCustomerKey = meta!['_stripe_customer_key'];
     if (stripeCustomerKey != null && stripeCustomerKey.toString().isNotEmpty) {
       return true;
     }
-    
+
     // Additional check: if user has subscriber role and stripe key
     final hasSubscriberRole = roles.contains('subscriber');
-    
+
     return hasSubscriberRole && stripeCustomerKey != null;
   }
-  
+
   // Get subscription tier/plan
   String get subscriptionPlan {
     if (!isActiveSubscription) return 'free';
-    
+
     if (meta == null) return 'free';
-    
+
     // Check for plan information in meta
     final planToActive = meta!['_plan_to_active'];
     if (planToActive != null) {
@@ -196,23 +301,23 @@ class ApiUserModel {
           return 'subscriber';
       }
     }
-    
+
     return 'subscriber';
   }
-  
+
   // Get Stripe customer ID
   String? get stripeCustomerId {
     return meta?['_stripe_customer_key']?.toString();
   }
-  
+
   // Check if user is verified
   bool get isEmailVerified {
     if (meta == null) return true; // Default to true if no meta
-    
+
     final unverified = meta!['directorist_user_email_unverified'];
     return unverified == null || unverified != '1';
   }
-  
+
   // Get user capabilities as a list
   List<String> get userCapabilities {
     final caps = <String>[];
@@ -223,7 +328,7 @@ class ApiUserModel {
     });
     return caps;
   }
-  
+
   // Check if user has specific capability
   bool hasCapability(String capability) {
     return capabilities[capability] == true || capabilities[capability] == 1;
@@ -240,26 +345,23 @@ class ApiUserModel {
   // Add listing to favourites
   ApiUserModel addToFavourites(int listingId) {
     final currentFavs = List<int>.from(favouriteListingIds);
-    
+
     if (!currentFavs.contains(listingId)) {
       currentFavs.add(listingId);
     }
-    
+
     // Update meta with serialized format
     final updatedMeta = Map<String, dynamic>.from(meta ?? {});
     updatedMeta['atbdp_favourites'] = serializeFavourites(currentFavs);
-    
-    return copyWith(
-      favouriteListings: currentFavs,
-      meta: updatedMeta,
-    );
+
+    return copyWith(favouriteListings: currentFavs, meta: updatedMeta);
   }
 
   // Remove listing from favourites
   ApiUserModel removeFromFavourites(int listingId) {
     final currentFavs = List<int>.from(favouriteListingIds);
     currentFavs.remove(listingId);
-    
+
     // Update meta with serialized format
     final updatedMeta = Map<String, dynamic>.from(meta ?? {});
     if (currentFavs.isEmpty) {
@@ -267,11 +369,8 @@ class ApiUserModel {
     } else {
       updatedMeta['atbdp_favourites'] = serializeFavourites(currentFavs);
     }
-    
-    return copyWith(
-      favouriteListings: currentFavs,
-      meta: updatedMeta,
-    );
+
+    return copyWith(favouriteListings: currentFavs, meta: updatedMeta);
   }
 
   // Toggle favourite status
@@ -285,7 +384,7 @@ class ApiUserModel {
 
   // Get total favourites count
   int get favouritesCount => favouriteListingIds.length;
-  
+
   ApiUserModel copyWith({
     String? id,
     String? username,
@@ -308,6 +407,7 @@ class ApiUserModel {
     List<dynamic>? acf,
     bool? isSuperAdmin,
     List<int>? favouriteListings,
+    ProfileImage? profileImage,
   }) {
     return ApiUserModel(
       id: id ?? this.id,
@@ -331,11 +431,12 @@ class ApiUserModel {
       acf: acf ?? this.acf,
       isSuperAdmin: isSuperAdmin ?? this.isSuperAdmin,
       favouriteListings: favouriteListings ?? this.favouriteListings,
+      profileImage: profileImage ?? this.profileImage,
     );
   }
 
   @override
   String toString() {
-    return 'ApiUserModel(id: $id, username: $username, name: $name, isActiveSubscription: $isActiveSubscription, subscriptionPlan: $subscriptionPlan, favouritesCount: $favouritesCount)';
+    return 'ApiUserModel(id: $id, username: $username, name: $name, isActiveSubscription: $isActiveSubscription, subscriptionPlan: $subscriptionPlan, favouritesCount: $favouritesCount, hasCustomProfileImage: $hasCustomProfileImage)';
   }
 }
