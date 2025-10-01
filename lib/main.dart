@@ -3,6 +3,7 @@ import 'package:dedicated_cow_boy_admin/app/modules/auth/auth.dart';
 import 'package:dedicated_cow_boy_admin/app/modules/auth/controller.dart';
 import 'package:dedicated_cow_boy_admin/app/modules/db.dart';
 import 'package:dedicated_cow_boy_admin/app/modules/listings.dart';
+import 'package:dedicated_cow_boy_admin/app/modules/pro.dart';
 import 'package:dedicated_cow_boy_admin/app/modules/subscriptions/subscriptions.dart';
 import 'package:dedicated_cow_boy_admin/app/modules/useraccounts.dart';
 import 'package:dedicated_cow_boy_admin/app/modules/users.dart';
@@ -12,7 +13,6 @@ import 'package:dedicated_cow_boy_admin/firebase_options.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get/get.dart';
@@ -39,9 +39,17 @@ class AdminPanelApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'Admin Panel',
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaleFactor: 1.0, // 🔒 Lock system font scaling
+          ),
+          child: child!,
+        );
+      },
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        fontFamily: 'popins', // 👈 Set default font
+        fontFamily: 'popins',
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
@@ -117,6 +125,7 @@ class NavigationController extends GetxController {
     const UserAccountsScreen(),
     const AdminManagementScreen(),
     SubscriptionManagementScreen(),
+    ProfileDialog(), // Profile screen at index 6
   ];
 
   Widget get currentPage => _pages[currentIndex.value];
@@ -139,6 +148,11 @@ class NavigationController extends GetxController {
     if (index != -1) {
       navigateToIndex(index, route);
     }
+  }
+
+  // Navigate to profile screen
+  void navigateToProfile() {
+    navigateToIndex(6, '/profile');
   }
 
   void toggleDrawer() {
@@ -165,34 +179,10 @@ final authStateProvider = StreamProvider<User?>((ref) {
 class AppRoutes {
   static final List<GetPage> routes = [
     GetPage(name: '/auth', page: () => AuthScreen()),
-    GetPage(
-      name: '/dashboard',
-      page: () => const MainAdminScreen(),
-      // middlewares: [AuthMiddleware()],
-    ),
-    GetPage(
-      name: '/dashboard/:route',
-      page: () => const MainAdminScreen(),
-      // middlewares: [AuthMiddleware()],
-    ),
+    GetPage(name: '/dashboard', page: () => const MainAdminScreen()),
+    GetPage(name: '/dashboard/:route', page: () => const MainAdminScreen()),
   ];
 }
-
-// Simplified Auth Middleware
-// class AuthMiddleware extends GetMiddleware {
-//   @override
-//   RouteSettings? redirect(String? route) {
-//     final authService = Get.find<AuthService>();
-//     final user = authService.currentUser;
-//     if (user == null && route != '/auth') {
-//       return const RouteSettings(name: '/auth');
-//     }
-//     if (user != null && route == '/auth') {
-//       return const RouteSettings(name: '/dashboard');
-//     }
-//     return null;
-//   }
-// }
 
 // Main Admin Screen
 class MainAdminScreen extends StatefulWidget {
@@ -221,7 +211,6 @@ class _MainAdminScreenState extends State<MainAdminScreen> {
       debugPrint('AuthService isSignedIn: ${authService.isSignedIn}');
       debugPrint('AuthService currentUser: ${authService.currentUser?.email}');
 
-      // Use the async isAuthenticated method that checks stored data
       final isAuthenticated = await authService.isAuthenticated();
 
       debugPrint('isAuthenticated result: $isAuthenticated');
@@ -234,7 +223,6 @@ class _MainAdminScreenState extends State<MainAdminScreen> {
 
         if (!isAuthenticated) {
           debugPrint('Not authenticated, redirecting to auth...');
-          // Redirect to auth screen if not authenticated
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Get.offAllNamed('/auth');
           });
@@ -249,7 +237,6 @@ class _MainAdminScreenState extends State<MainAdminScreen> {
           _isCheckingAuth = false;
           _isAuthenticated = false;
         });
-        // Redirect to auth screen on error
         WidgetsBinding.instance.addPostFrameCallback((_) {
           Get.offAllNamed('/auth');
         });
@@ -293,7 +280,6 @@ class _MainAdminScreenState extends State<MainAdminScreen> {
       );
     }
 
-    // If user is authenticated, show dashboard
     return const ResponsiveAdminDashboard();
   }
 }
@@ -309,7 +295,7 @@ class ResponsiveAdminDashboard extends StatelessWidget {
 
     return Scaffold(
       key: navController.scaffoldKey,
-      // appBar: _buildMobileAppBar(navController),
+      appBar: isMobile ? _buildMobileAppBar(navController) : null,
       drawer: isMobile ? const ResponsiveDrawer() : null,
       body: Row(
         children: [
@@ -336,6 +322,10 @@ class ResponsiveAdminDashboard extends StatelessWidget {
       ),
       actions: [
         IconButton(
+          icon: const Icon(Icons.person, color: Colors.white),
+          onPressed: () => navController.navigateToProfile(),
+        ),
+        IconButton(
           icon: const Icon(Icons.logout, color: Colors.white),
           onPressed: () => _showLogoutConfirmation(),
         ),
@@ -353,7 +343,6 @@ class ResponsiveAdminDashboard extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Get.back();
-              // Use API-based AuthService for logout
               final authService = Get.find<AuthService>();
               await authService.signOut();
               Get.offAllNamed('/auth');
@@ -388,15 +377,12 @@ class ResponsiveSidebar extends ConsumerWidget {
             child: Column(
               children: [
                 const SizedBox(height: 24),
-                // Logo
                 _buildLogo(controller.sidebarCollapsed.value),
                 const SizedBox(height: 40),
 
-                // Toggle button (only show on desktop)
                 if (!isTablet) _buildToggleButton(controller),
                 const SizedBox(height: 20),
 
-                // Menu Items
                 Expanded(
                   child: ListView.builder(
                     itemCount: MenuItems.items.length,
@@ -421,8 +407,7 @@ class ResponsiveSidebar extends ConsumerWidget {
                   ),
                 ),
 
-                // Logout button
-                _buildLogoutButton(controller),
+                _buildBottomActions(controller, navController),
               ],
             ),
           ),
@@ -480,16 +465,86 @@ class ResponsiveSidebar extends ConsumerWidget {
     );
   }
 
-  Widget _buildLogoutButton(AdminController controller) {
+  Widget _buildBottomActions(
+    AdminController controller,
+    NavigationController navController,
+  ) {
     return Padding(
       padding: const EdgeInsets.all(12.0),
-      child: ListTile(
-        leading: const Icon(Icons.logout, color: Colors.white),
-        title:
-            !controller.sidebarCollapsed.value
-                ? const Text('Logout', style: TextStyle(color: Colors.white))
-                : null,
-        onTap: () => _showLogoutConfirmation(controller),
+      child: Column(
+        children: [
+          // Profile Button
+          Obx(() {
+            final isProfileActive =
+                navController.currentRoute.value == '/profile';
+            return GestureDetector(
+              onTap: () => navController.navigateToProfile(),
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color:
+                      isProfileActive
+                          ? const Color(0xFFF2B342)
+                          : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.person,
+                      color: isProfileActive ? Colors.black87 : Colors.white,
+                      size: 20,
+                    ),
+                    if (!controller.sidebarCollapsed.value) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Profile',
+                          style: TextStyle(
+                            color:
+                                isProfileActive ? Colors.black87 : Colors.white,
+                            fontWeight:
+                                isProfileActive
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }),
+
+          // Logout Button
+          GestureDetector(
+            onTap: () => _showLogoutConfirmation(controller),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.logout, color: Colors.white, size: 20),
+                  if (!controller.sidebarCollapsed.value) ...[
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Logout',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -504,7 +559,6 @@ class ResponsiveSidebar extends ConsumerWidget {
           TextButton(
             onPressed: () async {
               Get.back();
-              // Use API-based AuthService for logout
               final authService = Get.find<AuthService>();
               await authService.signOut();
               Get.offAllNamed('/auth');
@@ -533,7 +587,6 @@ class ResponsiveDrawer extends StatelessWidget {
       backgroundColor: const Color(0xFF364C63),
       child: Column(
         children: [
-          // Drawer Header
           Container(
             height: 200,
             width: double.infinity,
@@ -555,7 +608,6 @@ class ResponsiveDrawer extends StatelessWidget {
             ),
           ),
 
-          // Menu Items
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 20),
@@ -577,7 +629,6 @@ class ResponsiveDrawer extends StatelessWidget {
             ),
           ),
 
-          // User Info and Logout
           const Divider(color: Colors.white24),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.white),
@@ -606,7 +657,6 @@ class ResponsiveDrawer extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Get.back();
-              // Use API-based AuthService for logout
               final authService = Get.find<AuthService>();
               await authService.signOut();
               Get.offAllNamed('/auth');
@@ -758,6 +808,7 @@ class MenuItem {
 
 // Menu Items Configuration
 class MenuItems {
+  // Visible menu items (shown in drawer/sidebar)
   static const List<MenuItem> items = [
     MenuItem(title: 'Dashboard', route: '/dashboard', icon: Icons.dashboard),
     MenuItem(
@@ -771,22 +822,26 @@ class MenuItems {
       route: '/products',
       icon: Icons.inventory,
     ),
-    // MenuItem(
-    //   title: 'Admins',
-    //   route: '/adminsmanage',
-    //   icon: Icons.admin_panel_settings,
-    // ),
-    // MenuItem(
-    //   title: 'Subscriptions',
-    //   route: '/subscriptions',
-    //   icon: Icons.subscriptions,
-    // ),
+  ];
+
+  // Hidden menu items (not shown in drawer/sidebar)
+  static const List<MenuItem> hiddenItems = [
+    MenuItem(title: 'Profile', route: '/profile', icon: Icons.person),
   ];
 
   static int getIndexForRoute(String route) {
+    // Check visible items first
     for (int i = 0; i < items.length; i++) {
       if (items[i].route == route) return i;
     }
+
+    // Check hidden items
+    for (int i = 0; i < hiddenItems.length; i++) {
+      if (hiddenItems[i].route == route) {
+        return items.length + i; // Offset by visible items count
+      }
+    }
+
     return 0; // Default to dashboard
   }
 }

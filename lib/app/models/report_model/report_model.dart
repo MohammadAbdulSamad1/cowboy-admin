@@ -128,9 +128,9 @@ extension ReportStatusExtension on ReportStatus {
       case ReportStatus.inReview:
         return Colors.blue;
       case ReportStatus.completed:
-        return Colors.green;
+        return Color(0xFFF2B342);
       case ReportStatus.rejected:
-        return Colors.red;
+        return  Color(0xFFF2B342);
       case ReportStatus.dismissed:
         return Colors.grey;
     }

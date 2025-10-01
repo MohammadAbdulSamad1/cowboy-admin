@@ -1,5 +1,6 @@
 // Controller for managing listings with enhanced filtering
 import 'package:dedicated_cow_boy_admin/app/models/model.dart';
+import 'package:dedicated_cow_boy_admin/app/modules/useraccounts.dart';
 import 'package:dedicated_cow_boy_admin/app/modules/widgets.dart';
 import 'package:dedicated_cow_boy_admin/app/utils/api_client.dart';
 import 'package:dedicated_cow_boy_admin/app/new/auth_service.dart';
@@ -601,7 +602,7 @@ class AdminListingsController extends GetxController {
       'Error',
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
+      backgroundColor: Color(0xFFF2B342),
       colorText: Colors.white,
       duration: const Duration(seconds: 3),
     );
@@ -636,6 +637,7 @@ class ManageListingsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const ProfileTopBar(),
                 // Header
                 Padding(
                   padding: EdgeInsets.all(16),
@@ -1137,7 +1139,7 @@ class ManageListingsScreen extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          dropdownColor: Colors.white,
+          dropdownColor: Color(0xFFF2B342),
           value: selected,
           hint: Text(
             title,
@@ -1315,7 +1317,11 @@ class ManageListingsScreen extends StatelessWidget {
                             : 'Publish',
                   ),
                   IconButton(
-                    icon: Icon(Icons.delete, size: 18, color: Colors.red),
+                    icon: Icon(
+                      Icons.delete,
+                      size: 18,
+                      color: Color(0xFFF2B342),
+                    ),
                     onPressed:
                         () => _showDeleteDialog(listing, controller, context),
                     tooltip: 'Delete',
@@ -1442,9 +1448,9 @@ class ManageListingsScreen extends StatelessWidget {
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'publish':
-        return Colors.green;
+        return Color(0xFFF2B342);
       case 'draft':
-        return Colors.orange;
+        return Color(0xFFF2B342);
       case 'pending':
         return Color(0xFFF2B342);
       case 'private':

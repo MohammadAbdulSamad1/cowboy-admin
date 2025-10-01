@@ -1,7 +1,9 @@
 import 'package:dedicated_cow_boy_admin/app/modules/dashboard_manage/controllers/dashboard_manage_controller.dart'
     hide PieChartData, BarChartData;
 import 'package:dedicated_cow_boy_admin/app/modules/pro.dart';
+import 'package:dedicated_cow_boy_admin/app/modules/useraccounts.dart';
 import 'package:dedicated_cow_boy_admin/app/new/auth_service.dart';
+import 'package:dedicated_cow_boy_admin/main.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:get/get.dart';
@@ -28,7 +30,7 @@ class DashboardManageView extends StatelessWidget {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        _buildStatsCards(constraints.maxWidth),
+                        _buildStatsCards(context),
                         _buildMainChartsSection(constraints.maxWidth),
                       ],
                     ),
@@ -42,144 +44,50 @@ class DashboardManageView extends StatelessWidget {
     );
   }
 
-  double _getResponsivePadding(double width) {
-    if (width < 600) return 8;
-    if (width < 1200) return 16;
-    return 24;
-  }
-
   bool _isMobile(double width) => width < 600;
-  bool _isTablet(double width) => width >= 600 && width < 1200;
-  bool _isDesktop(double width) => width >= 1200;
 
   Widget _buildHeader(BuildContext context, double screenWidth) {
-    final isMobile = _isMobile(screenWidth);
-
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Dashboard',
-            style: TextStyle(
-              fontSize: isMobile ? 20 : 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              if (value == 'profile') {
-                Get.dialog(
-                  Material(
-                    type: MaterialType.transparency,
-                    color: Colors.transparent,
-                    child: Center(
-                      child: SizedBox(
-                        width: 800,
-                        height: 1500,
-                        child: ProfileDialog(),
-                      ),
-                    ),
-                  ),
-                );
-              } else if (value == 'logout') {
-                final authService = Get.find<AuthService>();
-                await authService.signOut();
-                Get.offAllNamed('/auth');
-              }
-            },
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            offset: const Offset(0, 50),
-            elevation: 8,
-            color: Color(0xFFF2B342),
-            itemBuilder:
-                (context) => [
-                  const PopupMenuItem(
-                    value: 'profile',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'My Profile',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'logout',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.logout_outlined,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        SizedBox(width: 12),
-                        Text('Logout', style: TextStyle(color: Colors.white)),
-                      ],
-                    ),
-                  ),
-                ],
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Color(0xFFF2B342),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'My Profile',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Icon(Icons.arrow_drop_down, color: Colors.white),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return const ProfileTopBar();
   }
 
   Widget _buildDashboardTitle(double screenWidth) {
     return SizedBox.shrink(); // Remove extra title
   }
 
-  Widget _buildStatsCards(double screenWidth) {
-    final isMobile = _isMobile(screenWidth);
-    final isTablet = _isTablet(screenWidth);
+  Widget _buildStatsCards(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Padding(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      padding: EdgeInsets.all(screenWidth < 600 ? 16 : 24),
       child: LayoutBuilder(
         builder: (context, constraints) {
           int crossAxisCount;
           double childAspectRatio;
 
-          if (isMobile) {
+          if (screenWidth < 600) {
+            // Phones
             crossAxisCount = 2;
             childAspectRatio = 1.1;
-          } else if (isTablet) {
+          } else if (screenWidth < 900) {
+            // Small tablets
             crossAxisCount = 2;
-            childAspectRatio = 1.5;
+            childAspectRatio = 1.3;
+          } else if (screenWidth < 1100) {
+            // Large tablets / small laptops
+            crossAxisCount = 3;
+            childAspectRatio = 1;
+          } else if (screenWidth < 1300) {
+            // Large tablets / small laptops
+            crossAxisCount = 3;
+            childAspectRatio = 1.4;
+          } else if (screenWidth < 1500) {
+            // Large tablets / small laptops
+            crossAxisCount = 3;
+            childAspectRatio = 1.3;
           } else {
+            // Desktops
             crossAxisCount = 4;
-            childAspectRatio = 1.8;
+            childAspectRatio = 1.5;
           }
 
           return Obx(() {
@@ -188,25 +96,25 @@ class DashboardManageView extends StatelessWidget {
                 'title': 'Total Listings',
                 'value': controller.totalListings.value,
                 'icon': Icons.check_circle,
-                'color': const Color(0xFFD3D3D3), // Light gray
+                'color': const Color(0xFFD3D3D3),
               },
               {
                 'title': 'Registered Users',
                 'value': controller.totalUsers.value,
                 'icon': Icons.group,
-                'color': const Color(0xFFD3D3D3), // Light gray
+                'color': const Color(0xFFD3D3D3),
               },
               {
                 'title': 'Reported Listings',
                 'value': controller.reportedListings.value,
-                'icon': Icons.remove_red_eye,
-                'color': const Color(0xFFF2B342), // Orange/Yellow
+                'icon': Icons.error_outline,
+                'color': const Color(0xFFF2B342).withOpacity(0.57),
               },
               {
-                'title': 'Ranch Services\nPosted',
+                'title': 'Ranch Services Posted',
                 'value': controller.ranchServicesPosted.value,
                 'icon': Icons.headset,
-                'color': const Color(0xFFD3D3D3), // Light gray
+                'color': const Color(0xFFD3D3D3),
               },
             ];
 
@@ -227,7 +135,7 @@ class DashboardManageView extends StatelessWidget {
                   '${stat['value']}',
                   stat['icon'] as IconData,
                   stat['color'] as Color,
-                  isMobile,
+                  screenWidth < 600, // pass true only for phones
                 );
               },
             );
@@ -371,51 +279,51 @@ class DashboardManageView extends StatelessWidget {
     bool isMobile,
   ) {
     return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      padding: EdgeInsets.symmetric(
+        vertical: isMobile ? 16 : 20,
+        horizontal: isMobile ? 12 : 16,
+      ),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: isMobile ? 12 : 14,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 2,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  icon,
-                  color: Colors.black54,
-                  size: isMobile ? 16 : 20,
-                ),
-              ),
-            ],
+          // Title
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 12 : 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+
+          // Big Number
           Text(
             value,
             style: TextStyle(
-              fontSize: isMobile ? 24 : 32,
+              fontSize: isMobile ? 22 : 28,
               fontWeight: FontWeight.bold,
               color: Colors.black,
             ),
+          ),
+          const SizedBox(height: 12),
+
+          // Icon inside white circle
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.black87, size: isMobile ? 16 : 20),
           ),
         ],
       ),

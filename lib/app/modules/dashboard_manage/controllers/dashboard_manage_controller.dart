@@ -54,7 +54,6 @@ class DashboardManageController extends GetxController {
         headers: {'Authorization': basicAuth, 'Accept': 'application/json'},
       );
 
-      print(response.body);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

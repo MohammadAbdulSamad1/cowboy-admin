@@ -139,7 +139,7 @@ class SignInController extends GetxController {
           'Access Denied',
           'Only super administrators are allowed to access this panel.',
           snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.red,
+          backgroundColor:Color(0xFFF2B342),
           colorText: Colors.white,
           duration: const Duration(seconds: 4),
           icon: const Icon(Icons.block, color: Colors.white),
@@ -185,97 +185,55 @@ class SignInController extends GetxController {
 
     Get.dialog(
       Material(
-        color: Colors.transparent,
+        color: Colors.black.withOpacity(0.3),
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.only(left: 12, right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(0),
+              width: 450,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.1),
                     blurRadius: 20,
-                    offset: const Offset(0, 10),
-                    spreadRadius: 0,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Stack(
                 children: [
-                  // Header with close button
                   Padding(
-                    padding: const EdgeInsets.only(
-                      top: 20,
-                      left: 24,
-                      right: 16,
-                    ),
-                    child: Row(
-                      children: [
-                        // Lock icon
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade800,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Icon(
-                            Icons.lock_outline,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        // Title
-                        const Expanded(
-                          child: Text(
-                            'Forget Password',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
-                        // Close button
-                        GestureDetector(
-                          onTap: () {
-                            forgotPasswordEmailController.clear();
-                            Get.back();
-                          },
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8A317),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Content
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 16),
-                        // Description text
+                        // Title
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.lock_outline,
+                              color: Colors.black54,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              "Forget Password",
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Subtitle
                         const Text(
-                          'Please enter your email to recover your password.',
+                          "Please enter your email or phone number to recover or set your password.",
                           style: TextStyle(
                             fontSize: 14,
                             color: Color(0xFF666666),
@@ -283,92 +241,101 @@ class SignInController extends GetxController {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        // Email label
-                        const Text(
-                          'Email',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+
+                        // Input Field
+                        TextFormField(
+                          controller: forgotPasswordEmailController,
+                          keyboardType: TextInputType.text,
+                          style: const TextStyle(
+                            fontSize: 16,
                             color: Colors.black,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        // Input field
-                        Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: TextFormField(
-                            controller: forgotPasswordEmailController,
-                            keyboardType: TextInputType.emailAddress,
-                            style: const TextStyle(
+                          decoration: InputDecoration(
+                            hintText: "+41 000 000 000",
+                            hintStyle: TextStyle(
                               fontSize: 16,
-                              color: Colors.black,
+                              color: Colors.grey.shade400,
                             ),
-                            decoration: InputDecoration(
-                              hintText: 'Enter your email',
-                              hintStyle: TextStyle(
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                                width: 1,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                                width: 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE8A317),
+                                width: 2,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Submit Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE8A317),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: sendPasswordResetEmail,
+                            child: const Text(
+                              "Submit",
+                              style: TextStyle(
                                 fontSize: 16,
-                                color: Colors.grey.shade400,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
                               ),
-                              filled: true,
-                              fillColor: const Color(0xFFF8F8F8),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade300,
-                                  width: 1,
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade300,
-                                  width: 1,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE8A317),
-                                  width: 2,
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 16,
-                              ),
-                            ),
-                            validator: validateEmail,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        // Send button
-                        Obx(
-                          () => SizedBox(
-                            width: double.infinity,
-                            height: 55,
-                            child: CustomElevatedButton(
-                              borderRadius: 25,
-                              text: 'Send',
-                              backgroundColor: Colors.yellow,
-                              isLoading: isForgotPasswordLoading.value,
-                              onTap:
-                                  isForgotPasswordLoading.value
-                                      ? null
-                                      : sendPasswordResetEmail,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
                       ],
+                    ),
+                  ),
+
+                  // Close button
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: GestureDetector(
+                      onTap: () {
+                        forgotPasswordEmailController.clear();
+                        Get.back();
+                      },
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE8A317),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -392,7 +359,7 @@ class SignInController extends GetxController {
         'Invalid Email',
         emailError,
         snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.red,
+        backgroundColor: Color(0xFFF2B342),
         colorText: Colors.white,
         duration: const Duration(seconds: 4),
         icon: const Icon(Icons.error, color: Colors.white),
@@ -462,7 +429,7 @@ class SignInController extends GetxController {
       'Sign In Failed',
       message,
       snackPosition: SnackPosition.TOP,
-      backgroundColor: Colors.red,
+      backgroundColor:Color(0xFFF2B342),
       colorText: Colors.white,
       duration: const Duration(seconds: 4),
       icon: const Icon(Icons.error, color: Colors.white),
@@ -477,7 +444,7 @@ class SignInController extends GetxController {
       'Error',
       'An unexpected error occurred. Please try again.',
       snackPosition: SnackPosition.TOP,
-      backgroundColor: Colors.red,
+      backgroundColor: Color(0xFFF2B342),
       colorText: Colors.white,
       duration: const Duration(seconds: 4),
       icon: const Icon(Icons.error, color: Colors.white),

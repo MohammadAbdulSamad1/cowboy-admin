@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dedicated_cow_boy_admin/app/utils/api_client.dart';
 import 'package:dedicated_cow_boy_admin/app/utils/exceptions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 
@@ -351,28 +352,31 @@ class ProfileController extends GetxController {
     HapticFeedback.lightImpact();
   }
 
+  pickWebImage() async {
+    final ImagePicker picker = ImagePicker();
+    if (kIsWeb) {
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        return bytes;
+      }
+    }
+  }
+
   // Change profile picture
   Future<void> changeProfilePicture() async {
     try {
       isUploadingImage.value = true;
 
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-        maxWidth: 1024,
-        maxHeight: 1024,
-      );
+      final Uint8List? bytes = await pickWebImage();
 
-      if (image != null) {
-        final File file = File(image.path);
-        final String imageUrl = await uploadMedia([file]);
-        await updateUserProfile({
-          "profile_image_id": imageUrl,
-          // 'meta': {'attachment_id': imageUrl},
-        });
+      if (bytes != null) {
+        // Upload bytes directly (modify uploadMedia to accept Uint8List for web)
+        final String imageUrl = await uploadMediaWeb(bytes);
 
-        // IMPORTANT: Force refresh the user data from AuthService
+        await updateUserProfile({"profile_image_id": imageUrl});
+
+        // Refresh user data
         await _authService.refreshUser();
         final refreshedUser = _authService.currentUser;
         if (refreshedUser != null) {
@@ -380,16 +384,6 @@ class ProfileController extends GetxController {
         }
 
         _showSuccess('Profile picture updated successfully');
-
-        // // Note: You'll need to implement your own image upload service
-        // // For now, this is a placeholder
-        // _showError(
-        //   'Image upload not implemented yet. Please implement uploadMedia function.',
-        // );
-
-        // Example of how it would work:
-        // final String imageUrl = await uploadMedia([File(image.path)]);
-        // await updateUserProfile({'avatar_url': imageUrl});
       }
     } catch (e) {
       debugPrint('Error changing profile picture: $e');
@@ -455,8 +449,6 @@ class ProfileController extends GetxController {
       await loadUserProfile();
 
       isEditing.value = false;
-
-      Get.back();
 
       _showSuccess('Profile updated successfully');
     } catch (e) {
@@ -603,7 +595,7 @@ class ProfileController extends GetxController {
       'Error',
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
+      backgroundColor: Color(0xFFF2B342),
       colorText: Colors.white,
       duration: const Duration(seconds: 3),
       icon: const Icon(Icons.error, color: Colors.white),
@@ -672,7 +664,6 @@ Future<String> uploadMedia(
 
     if (response.statusCode == 201) {
       var jsonData = jsonDecode(responseBody);
-      print(jsonData);
 
       if (jsonData['id'] != null) {
         return jsonData['id'].toString(); // ✅ WordPress gives full URL
@@ -692,5 +683,47 @@ Future<String> uploadMedia(
     throw Exception('Upload timeout');
   } catch (e) {
     throw Exception('Upload failed: ${e.toString()}');
+  }
+}
+
+Future<String> uploadMediaWeb(Uint8List bytes) async {
+  var uri = Uri.parse('https://dedicatedcowboy.com/wp-json/wp/v2/media');
+  var request = http.MultipartRequest('POST', uri);
+
+  // 🔹 Add WordPress Auth (username + app password)
+  const username = "18XLegend";
+  const appPassword = "O9px KmDk isTg PgaW wysH FqL6";
+  final basicAuth =
+      'Basic ${base64Encode(utf8.encode('$username:$appPassword'))}';
+
+  request.headers.addAll({
+    'Authorization': basicAuth,
+    'Accept': 'application/json',
+  });
+
+  request.files.add(
+    http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename:
+          'profile_${DateTime.now().millisecondsSinceEpoch.toString()}.png',
+    ),
+  );
+
+  var response = await request.send();
+  var responseBody = await response.stream.bytesToString();
+
+  if (response.statusCode == 201) {
+    var jsonData = jsonDecode(responseBody);
+
+    if (jsonData['id'] != null) {
+      return jsonData['id'].toString(); // ✅ WordPress gives full URL
+    } else {
+      throw Exception('Invalid response: Missing source_url');
+    }
+  } else {
+    throw Exception(
+      'Upload failed. Status: ${response.statusCode}, Body: $responseBody',
+    );
   }
 }

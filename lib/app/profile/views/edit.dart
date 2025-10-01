@@ -34,11 +34,7 @@ class _UserProfileEditScreenState extends State<UserProfileEditScreen> {
       backgroundColor: Colors.grey.shade100,
       body: SafeArea(
         child: CustomScrollView(
-          slivers: [
-            _buildSliverAppBar(),
-            SliverToBoxAdapter(child: _buildProfileForm()),
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
+          slivers: [SliverToBoxAdapter(child: _buildProfileForm())],
         ),
       ),
     );
@@ -49,40 +45,14 @@ class _UserProfileEditScreenState extends State<UserProfileEditScreen> {
       expandedHeight: _expandedAppBarHeight,
       collapsedHeight: _collapsedAppBarHeight,
       pinned: true,
-      backgroundColor: const Color(0xff364C63),
-      leading: GestureDetector(
-        onTap: () => Get.back(),
-        child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
-      ),
-      title: const Text(
-        'Edit Profile',
-        style: TextStyle(
-          fontSize: 18,
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      backgroundColor: Colors.white,
+
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           children: [
             // Background image
-            Container(
-              width: double.infinity,
-              height: double.infinity,
-              color: const Color(0xff364C63),
-              child: Image.asset(
-                'assets/images/5001147_19742 1.png',
-                fit: BoxFit.cover,
-              ),
-            ),
-            // Dark overlay
-            Container(
-              height: double.infinity,
-              width: double.infinity,
-              decoration: const BoxDecoration(color: Colors.black45),
-            ),
+
             // Profile content
-            _buildProfileHeader(),
           ],
         ),
         collapseMode: CollapseMode.parallax,
@@ -184,7 +154,7 @@ class _UserProfileEditScreenState extends State<UserProfileEditScreen> {
               style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
+                color: Colors.black,
                 shadows: [
                   Shadow(
                     color: Colors.black45,
@@ -201,7 +171,7 @@ class _UserProfileEditScreenState extends State<UserProfileEditScreen> {
               controller.userEmail.value,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.black.withOpacity(0.9),
                 shadows: const [
                   Shadow(
                     color: Colors.black45,
@@ -285,6 +255,7 @@ class _UserProfileEditScreenState extends State<UserProfileEditScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildProfileHeader(),
           // Personal Information Section
           _buildSectionTitle('Personal Information'),
           const SizedBox(height: 20),
@@ -595,7 +566,7 @@ class _UserProfileEditScreenState extends State<UserProfileEditScreen> {
       child: Obx(
         () => CustomElevatedButton(
           text: 'Save Changes',
-          backgroundColor: const Color(0xFF42576C),
+          backgroundColor: Color(0xFFF2B342),
           textColor: Colors.white,
           fontSize: 16,
           fontWeight: FontWeight.w600,

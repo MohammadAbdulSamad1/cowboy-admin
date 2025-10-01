@@ -1,6 +1,7 @@
 // user_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dedicated_cow_boy_admin/app/models/report_model/report_model.dart';
+import 'package:dedicated_cow_boy_admin/app/modules/useraccounts.dart';
 // shimmer_loading.dart
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
@@ -790,6 +791,8 @@ class _ResponsiveAdminReportsScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const ProfileTopBar(),
+                SizedBox(height: _isMobile ? 12 : 16),
                 // Header
                 _buildHeader(),
                 SizedBox(height: _isMobile ? 12 : 16),
@@ -831,19 +834,6 @@ class _ResponsiveAdminReportsScreenState
             "User Reports",
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
-          SizedBox(height: 12),
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search reports...',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            onChanged: _onSearchChanged,
-          ),
         ],
       );
     }
@@ -854,21 +844,6 @@ class _ResponsiveAdminReportsScreenState
         const Text(
           "User Reports",
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-        ),
-        SizedBox(
-          width: _isTablet ? 250 : 300,
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search reports...',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            onChanged: _onSearchChanged,
-          ),
         ),
       ],
     );
@@ -937,7 +912,7 @@ class _ResponsiveAdminReportsScreenState
           ],
         ),
         SizedBox(height: 20),
-        _buildActionButtons(),
+        // _buildActionButtons(),
       ],
     );
   }
@@ -969,8 +944,8 @@ class _ResponsiveAdminReportsScreenState
           ),
           SizedBox(width: 16),
           _buildDateRangeFilter(),
-          SizedBox(width: 24),
-          _buildActionButtons(),
+          // SizedBox(width: 24),
+          // _buildActionButtons(),
         ],
       ),
     );
@@ -995,7 +970,7 @@ class _ResponsiveAdminReportsScreenState
     Function(String) onChanged,
   ) {
     return Container(
-      width: _isMobile ? null : 280,
+      width: _isMobile ? null : 320,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1067,7 +1042,7 @@ class _ResponsiveAdminReportsScreenState
 
   Widget _buildDateRangeFilter() {
     return Container(
-      width: _isMobile ? null : 180,
+      width: _isMobile ? null : 220,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -2049,9 +2024,11 @@ class _EditReportDialogState extends State<EditReportDialog> {
   }
 
   Future<void> _updateReport() async {
-    setState(() {
-      _isUpdating = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isUpdating = true;
+      });
+    }
 
     try {
       final success = await AdminReportService.instance
@@ -2090,9 +2067,11 @@ class _EditReportDialogState extends State<EditReportDialog> {
         ),
       );
     } finally {
-      setState(() {
-        _isUpdating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
     }
   }
 

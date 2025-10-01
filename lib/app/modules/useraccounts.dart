@@ -5,6 +5,7 @@ import 'package:dedicated_cow_boy_admin/app/modules/pro.dart';
 import 'package:dedicated_cow_boy_admin/app/new/auth_service.dart';
 import 'package:dedicated_cow_boy_admin/app/utils/api_client.dart';
 import 'package:dedicated_cow_boy_admin/app/utils/exceptions.dart';
+import 'package:dedicated_cow_boy_admin/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -73,7 +74,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
           'Error',
           'Failed to load users: ${response.message ?? 'Unknown error'}',
           snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.red,
+          backgroundColor: Color(0xFFF2B342),
           colorText: Colors.white,
           duration: const Duration(seconds: 3),
           icon: const Icon(Icons.error, color: Colors.white),
@@ -84,7 +85,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
         'Authentication Error',
         'Authentication error: ${e.message}',
         snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.red,
+        backgroundColor: Color(0xFFF2B342),
         colorText: Colors.white,
         duration: const Duration(seconds: 3),
         icon: const Icon(Icons.error, color: Colors.white),
@@ -94,7 +95,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
         'Error',
         'Error loading users: $e',
         snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.red,
+        backgroundColor: Color(0xFFF2B342),
         colorText: Colors.white,
         duration: const Duration(seconds: 3),
         icon: const Icon(Icons.error, color: Colors.white),
@@ -133,7 +134,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
           'Error',
           'Authentication token not found',
           snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.red,
+          backgroundColor: Color(0xFFF2B342),
           colorText: Colors.white,
           duration: const Duration(seconds: 3),
           icon: const Icon(Icons.error, color: Colors.white),
@@ -156,7 +157,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
           'Error',
           'Failed to search users: ${response.message ?? 'Unknown error'}',
           snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.red,
+          backgroundColor: Color(0xFFF2B342),
           colorText: Colors.white,
           duration: const Duration(seconds: 3),
           icon: const Icon(Icons.error, color: Colors.white),
@@ -167,7 +168,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
         'Error',
         'Error searching users: $e',
         snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.red,
+        backgroundColor: Color(0xFFF2B342),
         colorText: Colors.white,
         duration: const Duration(seconds: 3),
         icon: const Icon(Icons.error, color: Colors.white),
@@ -309,7 +310,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
             'Error',
             'Failed to delete user. Please try again.',
             snackPosition: SnackPosition.TOP,
-            backgroundColor: Colors.red,
+            backgroundColor: Color(0xFFF2B342),
             colorText: Colors.white,
             duration: const Duration(seconds: 3),
             icon: const Icon(Icons.error, color: Colors.white),
@@ -320,7 +321,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
           'Error',
           'Error deleting user: $e',
           snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.red,
+          backgroundColor: Color(0xFFF2B342),
           colorText: Colors.white,
           duration: const Duration(seconds: 3),
           icon: const Icon(Icons.error, color: Colors.white),
@@ -372,7 +373,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
                       'Error',
                       'Failed to update user. Please try again.',
                       snackPosition: SnackPosition.TOP,
-                      backgroundColor: Colors.red,
+                      backgroundColor: Color(0xFFF2B342),
                       colorText: Colors.white,
                       duration: const Duration(seconds: 3),
                       icon: const Icon(Icons.error, color: Colors.white),
@@ -406,7 +407,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
                         'Error',
                         'Failed to create user. Please try again.',
                         snackPosition: SnackPosition.TOP,
-                        backgroundColor: Colors.red,
+                        backgroundColor: Color(0xFFF2B342),
                         colorText: Colors.white,
                         duration: const Duration(seconds: 3),
                         icon: const Icon(Icons.error, color: Colors.white),
@@ -417,7 +418,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
                       'Error',
                       'Failed to create user: $e',
                       snackPosition: SnackPosition.TOP,
-                      backgroundColor: Colors.red,
+                      backgroundColor: Color(0xFFF2B342),
                       colorText: Colors.white,
                       duration: const Duration(seconds: 3),
                       icon: const Icon(Icons.error, color: Colors.white),
@@ -431,7 +432,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
                   'Error',
                   'Error saving user: $e',
                   snackPosition: SnackPosition.TOP,
-                  backgroundColor: Colors.red,
+                  backgroundColor: Color(0xFFF2B342),
                   colorText: Colors.white,
                   duration: const Duration(seconds: 3),
                   icon: const Icon(Icons.error, color: Colors.white),
@@ -782,7 +783,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
                   children: [
                     Icon(
                       Icons.warning_amber_rounded,
-                      color: Colors.orange,
+                      color: Color(0xFFF2B342),
                       size: 24,
                     ),
                     const SizedBox(width: 8),
@@ -801,19 +802,25 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
+                        color: Color(0xFFF2B342).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                        border: Border.all(
+                          color: Color(0xFFF2B342).withOpacity(0.3),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline, color: Colors.red, size: 16),
+                          Icon(
+                            Icons.info_outline,
+                            color: Color(0xFFF2B342),
+                            size: 16,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'This action cannot be undone.',
                               style: TextStyle(
-                                color: Colors.red[700],
+                                color: Color(0xFFF2B342),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -832,7 +839,7 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
                   ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(true),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
+                      backgroundColor: Color(0xFFF2B342),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -1293,7 +1300,9 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
               DataColumn(
                 label: SizedBox(width: 200, child: Text("User Details")),
               ),
-              DataColumn(label: SizedBox(width: 180, child: Text("Contact"))),
+              DataColumn(
+                label: SizedBox(width: 180, child: Text("Email / Phone No.")),
+              ),
               DataColumn(label: SizedBox(width: 100, child: Text("Type"))),
               DataColumn(label: SizedBox(width: 100, child: Text("Status"))),
               DataColumn(label: SizedBox(width: 120, child: Text("Actions"))),
@@ -1331,10 +1340,10 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
         userType == "Seller"
             ? Color(0xff364C63)
             : userType == "Admin"
-            ? Colors.red
+            ? Color(0xFFF2B342)
             : Color(0xFFF2B342);
     final isActive = user.isEmailVerified;
-    final statusColor = isActive ? Colors.green : Colors.grey;
+    final statusColor = isActive ? Color(0xFFF2B342) : Colors.grey;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1463,9 +1472,9 @@ class _UserAccountsScreenState extends State<UserAccountsScreen> {
 
     final typeColor =
         userType == "Seller"
-            ? Color(0xff364C63)
+            ? Color(0xFF0E8F07)
             : userType == "Admin"
-            ? Colors.red
+            ? Color(0xFFF2B342)
             : Color(0xFFF2B342);
     final isActive = user.isEmailVerified;
     final statusColor = isActive ? Color(0xFFF2B342) : Color(0xff364C63);
@@ -2477,7 +2486,7 @@ class ProfileTopBar extends StatelessWidget {
       height: 70,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       decoration: const BoxDecoration(
-        color: Color(0xFFF7FAFC),
+        color: Color(0xffD9D9D9),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(16),
           topRight: Radius.circular(16),
@@ -2489,7 +2498,6 @@ class ProfileTopBar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
               borderRadius: BorderRadius.circular(25),
               boxShadow: [
                 BoxShadow(
@@ -2500,21 +2508,11 @@ class ProfileTopBar extends StatelessWidget {
               ],
             ),
             child: PopupMenuButton<String>(
+              color: Color(0xFFF2B342),
               onSelected: (value) async {
                 if (value == 'profile') {
-                  Get.dialog(
-                    Material(
-                      type: MaterialType.transparency,
-                      color: Colors.transparent,
-                      child: Center(
-                        child: SizedBox(
-                          width: 800, // set width
-                          height: 1500, // set height
-                          child: ProfileDialog(),
-                        ),
-                      ),
-                    ),
-                  );
+                  final navController = Get.find<NavigationController>();
+                  navController.navigateToProfile();
                 } else if (value == 'logout') {
                   await FirebaseAuth.instance.signOut();
                   Get.offAllNamed('/auth');
@@ -2547,18 +2545,18 @@ class ProfileTopBar extends StatelessWidget {
                       ),
                     ),
                   ],
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundImage: AssetImage(
-                      'assets/images/Rectangle 3463809 (1).png',
+                    backgroundImage: NetworkImage(
+                      Get.find<AuthService>().currentUser?.profile_image ?? '',
                     ),
                   ),
                   SizedBox(width: 12),
                   Text(
-                    'Dedicated Cowboy',
+                    'Admin Dedicated Cowboy',
                     style: TextStyle(
                       fontSize: 16,
                       color: Color(0xFF2D3748),
